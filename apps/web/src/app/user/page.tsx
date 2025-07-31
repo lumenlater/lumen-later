@@ -171,8 +171,7 @@ export default function UserDashboard() {
         description: 'Bill payment initiated successfully. Transaction will be confirmed shortly.',
       });
       
-      // Refresh data after payment
-      window.location.reload();
+      router.refresh();
     } catch (error) {
       console.error('Error paying bill:', error);
       toast({
@@ -241,8 +240,7 @@ export default function UserDashboard() {
         description: 'Loan repayment initiated successfully. Transaction will be confirmed shortly.',
       });
       
-      // Refresh data after repayment
-      window.location.reload();
+      router.refresh();
     } catch (error) {
       console.error('Error repaying bill:', error);
       toast({

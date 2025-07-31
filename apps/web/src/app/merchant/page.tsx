@@ -106,7 +106,7 @@ export default function MerchantPage() {
         });
         
         // Refetch bills to show the new one
-        window.location.reload();
+        router.refresh();
       } else {
         toast({
           title: 'Bill creation pending',

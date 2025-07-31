@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { BackButton } from '@/components/ui/back-button';
 import { TrendingUp, TrendingDown, Users, DollarSign, AlertCircle, Activity } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface MetricCardProps {
   title: string;
@@ -38,6 +39,7 @@ function MetricCard({ title, value, change, icon: Icon, prefix = '' }: MetricCar
 }
 
 export default function AdminDashboard() {
+  const router = useRouter();
   const [metrics, setMetrics] = useState({
     tvl: '0',
     activeLoans: 0,
@@ -113,7 +115,7 @@ export default function AdminDashboard() {
             <p className="text-sm text-gray-600 mt-1">2 loans eligible</p>
           </button>
           <button 
-            onClick={() => window.location.href = '/admin/merchants'}
+            onClick={() => router.push('/admin/merchants')}
             className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <Users className="w-5 h-5 text-blue-600 mb-2" />

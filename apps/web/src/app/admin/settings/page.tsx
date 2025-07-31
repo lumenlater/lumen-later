@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Shield, Percent, Clock, AlertCircle, Save } from 'lucide-react';
 import { ADMIN_WALLETS } from '@/config/admin';
+import { useRouter } from 'next/navigation';
 
 export default function SystemSettings() {
+  const router = useRouter();
   const [settings, setSettings] = useState({
     interestRate: '0',
     lateFeeRate: '10',
@@ -196,7 +198,7 @@ export default function SystemSettings() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.location.href = '/admin/settings/admins'}
+            onClick={() => router.push('/admin/settings/admins')}
           >
             Manage Admins
           </Button>
