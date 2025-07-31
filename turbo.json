@@ -1,0 +1,83 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["**/.env", "**/.env.*"],
+  "pipeline": {
+    "// Environment Management": {},
+    "env:select": {
+      "cache": false
+    },
+    
+    "// Network Setup": {},
+    "network:setup": {
+      "cache": false,
+      "env": ["STELLAR_NETWORK", "STELLAR_RPC_URL", "STELLAR_HORIZON_URL"]
+    },
+    
+    "// Contract Management": {},
+    "contracts:build": {
+      "outputs": ["contracts/target/**"],
+      "cache": true
+    },
+    "contracts:deploy": {
+      "dependsOn": ["contracts:build"],
+      "cache": false,
+      "env": ["DEPLOYMENT_MODE", "STELLAR_NETWORK", "STELLAR_ACCOUNT", "DEPLOYER_SECRET"]
+    },
+    "contracts:connect": {
+      "cache": false,
+      "env": ["DEPLOYMENT_MODE", "PUBLIC_*_CONTRACT_ID"]
+    },
+    
+    "// Binding Management": {},
+    "bindings:generate": {
+      "dependsOn": ["contracts:deploy", "contracts:connect"],
+      "outputs": ["packages/*-client/**"],
+      "cache": false,
+      "env": ["STELLAR_NETWORK", "CONTRACT_BINDING_MODE"]
+    },
+    "bindings:link": {
+      "cache": false
+    },
+    
+    "// Frontend Configuration": {},
+    "frontend:configure": {
+      "dependsOn": ["bindings:generate", "bindings:link"],
+      "cache": false,
+      "outputs": ["apps/web/.env.local"]
+    },
+    
+    "// Development": {},
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "env": ["NEXT_PUBLIC_*"]
+    },
+    
+    "// Production Build": {},
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**"
+      ],
+      "env": ["NEXT_PUBLIC_*"]
+    },
+    
+    "// Testing": {},
+    "test": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    
+    "// Code Quality": {},
+    "lint": {
+      "outputs": []
+    },
+    
+    "// Cleanup": {},
+    "clean": {
+      "cache": false
+    }
+  }
+}

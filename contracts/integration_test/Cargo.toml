@@ -1,0 +1,28 @@
+[package]
+name = "integration-test"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+soroban-sdk = { workspace = true }
+soroban-token-sdk = { workspace = true }
+bnpl-core-interface = { workspace = true }
+lp-token-interface = { workspace = true }
+usdc-token = { workspace = true }
+lp-token = { workspace = true }
+bnpl-core = { workspace = true }
+
+
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+soroban-token-sdk = { workspace = true }
+bnpl-core-interface = { workspace = true }
+lp-token-interface = { workspace = true }
+usdc-token = { workspace = true }
+lp-token = { workspace = true }
+bnpl-core = { workspace = true }

@@ -1,0 +1,21 @@
+[package]
+name = "lp-token"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = { workspace = true }
+soroban-token-sdk = { workspace = true }
+bnpl-core-interface = { workspace = true }
+lp-token-interface = { workspace = true }
+
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+soroban-token-sdk = { workspace = true }
+bnpl-core-interface = { workspace = true }
+lp-token-interface = { workspace = true }
+usdc-token = { workspace = true }

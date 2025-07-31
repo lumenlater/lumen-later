@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test-contracts:
+    name: Test Contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          override: true
+          
+      - name: Cache Cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          
+      - name: Run tests
+        run: |
+          cd contracts
+          cargo test --all
+          
+      - name: Build contracts
+        run: |
+          cd contracts
+          cargo build --release --target wasm32-unknown-unknown
+          
+      - name: Run Clippy
+        run: |
+          cd contracts
+          cargo clippy --all-targets --all-features -- -D warnings
+
+  test-sdk:
+    name: Test SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build SDK
+        run: npm run build --workspace=@lumenlater/sdk
+        
+      - name: Run SDK tests
+        run: npm run test --workspace=@lumenlater/sdk
+        
+      - name: Lint SDK
+        run: npm run lint --workspace=@lumenlater/sdk
+
+  test-web:
+    name: Test Web App
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build packages
+        run: npm run build
+        
+      - name: Run web tests
+        run: npm run test --workspace=@lumenlater/web
+        
+      - name: Lint web app
+        run: npm run lint --workspace=@lumenlater/web
+        
+      - name: Type check
+        run: npm run typecheck --workspace=@lumenlater/web
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+        
+      - name: Run Rust audit
+        run: |
+          cd contracts
+          cargo audit
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate

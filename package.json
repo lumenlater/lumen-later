@@ -1,0 +1,44 @@
+{
+  "name": "lumenlater",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "// Environment Management": "========================================",
+    "env:select": "node scripts/env-select.mjs",
+    "env:local": "pnpm run env:select local",
+    "env:testnet": "pnpm run env:select testnet",
+    "env:futurenet": "pnpm run env:select futurenet",
+    "env:mainnet": "pnpm run env:select mainnet",
+    "// Network Setup": "========================================",
+    "network:setup": "node scripts/network-setup.mjs",
+    "network:fund": "node scripts/fund-account.mjs",
+    "// Contract Management": "========================================",
+    "contracts:build": "cd contracts && stellar contract build",
+    "contracts:deploy": "node scripts/deploy-contracts.mjs",
+    "// Smart Contract Testing": "========================================",
+    "contracts:test": "cd contracts && cargo test --workspace",
+    "contracts:test:integration": "cd contracts/integration_tests && cargo test -- --nocapture",
+    "contracts:test:verbose": "cd contracts && cargo test --workspace -- --nocapture",
+    "// Binding Management": "========================================",
+    "bindings:generate": "node scripts/generate-bindings.mjs && cd apps/web && pnpm install",
+    "// Complete Setup Workflows": "========================================",
+    "setup:fresh:local": "pnpm run env:local && pnpm run network:setup && pnpm run contracts:deploy && pnpm run bindings:generate",
+    "setup:fresh:testnet": "pnpm run env:testnet && pnpm run network:setup && pnpm run contracts:deploy && pnpm run bindings:generate",
+    "// Development": "========================================",
+    "dev": "cd apps/web && pnpm run dev",
+    "build": "pnpm run contracts:build && cd apps/web && pnpm run build",
+    "clean": "rm -rf node_modules packages/*/node_modules packages/*/dist .stellar/contract-ids"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "contracts/*"
+  ]
+}

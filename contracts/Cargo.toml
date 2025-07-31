@@ -1,0 +1,40 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "lp_token_interface",
+    "lp_token",
+    "bnpl_core_interface",
+    "usdc_token",
+    "bnpl_core",
+    "integration_test"
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+
+[workspace.dependencies]
+soroban-sdk = { version = "22.0.8" }
+soroban-token-sdk = { version = "22.0.8" }
+stellar-access = "0.4.1"
+lp-token-interface = { path = "lp_token_interface" }
+bnpl-core-interface = { path = "bnpl_core_interface" }
+lp-token = { path = "lp_token" }
+usdc-token = { path = "usdc_token" }
+bnpl-core = { path = "bnpl_core" }
+integration-test = { path = "integration_test" }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
+
+[profile.release-with-logs]
+inherits = "release"
+debug-assertions = true

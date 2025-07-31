@@ -1,0 +1,217 @@
+// Prisma schema for BNPL merchant applications
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model MerchantApplication {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Core identification
+  applicantAddress String  // Stellar public key
+  contractId       String  // BNPL contract ID (used as key, not stored on blockchain)
+  
+  // This is what gets stored on blockchain
+  blockchainId     String? // MongoDB ObjectID stored on blockchain for reference
+  
+  // Application status
+  status           ApplicationStatus @default(DRAFT)
+  submittedAt      DateTime?
+  reviewedAt       DateTime?
+  reviewedBy       String?         // Admin address
+  rejectionReason  String?
+  riskScore        Int?
+
+  // Business Information
+  businessInfo BusinessInfo
+
+  // Contact Information  
+  contactInfo ContactInfo
+
+  // KYB Documents
+  documents KYBDocuments
+
+  // Banking Information
+  bankingInfo BankingInfo
+
+  // Blockchain tracking
+  blockchainTxHash        String?
+  isBlockchainCommitted   Boolean @default(false)
+  blockchainCommitAttempts Int    @default(0)
+  lastBlockchainAttempt   DateTime?
+
+  // Composite unique constraint - one application per address per contract
+  @@unique([applicantAddress, contractId])
+  
+  // Indexes for performance
+  @@index([applicantAddress])
+  @@index([contractId])
+  @@index([status])
+  @@index([blockchainId])
+  @@map("merchant_applications")
+}
+
+type BusinessInfo {
+  legalName         String
+  tradingName       String
+  registrationNumber String
+  taxId            String
+  category         String
+  subcategory      String
+  yearEstablished  Int
+  monthlyVolume    Float
+  website          String
+  description      String
+  businessAddress  AddressInfo
+}
+
+type ContactInfo {
+  primaryContact   ContactPerson
+  technicalContact ContactPerson?
+  financialContact ContactPerson?
+}
+
+type ContactPerson {
+  firstName String
+  lastName  String
+  title     String
+  email     String
+  phone     String
+}
+
+type AddressInfo {
+  street     String
+  city       String
+  state      String
+  postalCode String
+  country    String
+}
+
+type KYBDocuments {
+  businessRegistration DocumentInfo
+  taxCertificate       DocumentInfo
+  bankStatement        DocumentInfo
+  utilityBill         DocumentInfo
+  additionalDocs      DocumentInfo[]
+}
+
+type DocumentInfo {
+  documentType      String
+  fileHash         String
+  uploadedAt       DateTime
+  verified         Boolean @default(false)
+  verificationNotes String?
+}
+
+type BankingInfo {
+  accountName   String
+  accountNumber String
+  routingNumber String
+  bankName      String
+  swiftCode     String?
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  DOCUMENTS_NEEDED
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+// Admin management
+model AdminUser {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  
+  address     String @unique // Stellar public key
+  role        AdminRole @default(REVIEWER)
+  permissions String[] // Array of permission strings
+  isActive    Boolean @default(true)
+  
+  // Audit trail
+  applicationsReviewed String[] @db.ObjectId // References to MerchantApplication ids
+  lastActivity        DateTime?
+  
+  @@map("admin_users")
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  REVIEWER
+}
+
+// System configuration per contract deployment
+model ContractConfig {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  contractId     String @unique // BNPL contract address (Stellar contract ID)
+  networkType    String         // "testnet" | "mainnet"
+  deployedAt     DateTime
+  isActive       Boolean @default(true)
+  
+  // Configuration settings
+  settings       Json // Flexible config object
+  
+  @@map("contract_configs")
+}
+
+// Track blockchain references
+model BlockchainReference {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  
+  // Links MongoDB document to blockchain
+  mongoId        String // MongoDB ObjectID of the referenced document
+  contractId     String // Which BNPL contract this reference is stored in
+  referenceType  String // "merchant_application" | "loan" | "bill" | etc.
+  txHash         String // Transaction hash where this was stored
+  
+  @@unique([mongoId, contractId])
+  @@index([contractId])
+  @@map("blockchain_references")
+}
+
+// Bill model for BNPL purchases (Simplified for POC)
+model Bill {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Core identification
+  contractId       String  // BNPL contract ID (to filter bills by contract)
+  merchantAddress  String  // Merchant Stellar address
+  userAddress      String  // User/Buyer Stellar address
+  
+  // This is what gets stored on blockchain
+  onChainBillId    Int?    // The bill ID assigned by the smart contract
+  
+  // Bill details (simple)
+  amount           Float   // Total bill amount in USDC
+  description      String  // What the purchase is for
+  
+  // Merchant info (simple)
+  merchantName     String
+  
+  // Composite unique constraint - one bill ID per contract
+  @@unique([onChainBillId, contractId])
+  
+  // Indexes
+  @@index([merchantAddress])
+  @@index([userAddress])
+  @@index([contractId])
+  @@index([contractId, userAddress])
+  @@index([contractId, merchantAddress])
+  @@map("bills")
+}
