@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CreditCard, Store, Wallet } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { LogoWithText } from '@/components/ui/logo';
+import { motion } from 'motion/react';
 
 export default function Home() {
   const { isConnected } = useWallet();
@@ -19,21 +20,61 @@ export default function Home() {
       <main className="container mx-auto px-4 py-8">
         {/* Hero Section */}
         <div className="text-center mb-12">
-          <div className="flex justify-center mb-8">
+          <motion.div 
+            className="flex justify-center mb-8"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+          >
             <LogoWithText size="large" />
-          </div>
-          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+          </motion.div>
+          <motion.p 
+            className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
+          >
             A decentralized Buy Now Pay Later protocol built on Stellar blockchain, 
             enabling flexible payments for users and instant settlements for merchants.
-          </p>
+          </motion.p>
         </div>
 
         {/* How It Works Section */}
         <div className="max-w-6xl mx-auto mb-16">
-          <h2 className="text-3xl font-bold text-center mb-12 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">How It Works</h2>
+          <motion.h2 
+            className="text-3xl font-bold text-center mb-12 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            How It Works
+          </motion.h2>
           
-          <div className="grid md:grid-cols-3 gap-8">
-            <Card className="border-2 border-blue-100 hover:border-blue-300 transition-all duration-300">
+          <motion.div 
+            className="grid md:grid-cols-3 gap-8"
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={{
+              hidden: { opacity: 0 },
+              visible: {
+                opacity: 1,
+                transition: {
+                  staggerChildren: 0.15
+                }
+              }
+            }}
+          >
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0 }
+              }}
+              whileHover={{ y: -5 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="border-2 border-blue-100 hover:border-blue-300 transition-all duration-300 h-full">
               <CardHeader>
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mb-4">
                   <span className="text-2xl font-bold text-blue-600">1</span>
@@ -47,8 +88,17 @@ export default function Home() {
                 </p>
               </CardContent>
             </Card>
+            </motion.div>
 
-            <Card className="border-2 border-purple-100 hover:border-purple-300 transition-all duration-300">
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0 }
+              }}
+              whileHover={{ y: -5 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="border-2 border-purple-100 hover:border-purple-300 transition-all duration-300 h-full">
               <CardHeader>
                 <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-purple-200 rounded-full flex items-center justify-center mb-4">
                   <span className="text-2xl font-bold text-purple-600">2</span>
@@ -62,8 +112,17 @@ export default function Home() {
                 </p>
               </CardContent>
             </Card>
+            </motion.div>
 
-            <Card className="border-2 border-indigo-100 hover:border-indigo-300 transition-all duration-300">
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0 }
+              }}
+              whileHover={{ y: -5 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="border-2 border-indigo-100 hover:border-indigo-300 transition-all duration-300 h-full">
               <CardHeader>
                 <div className="w-12 h-12 bg-gradient-to-br from-indigo-100 to-indigo-200 rounded-full flex items-center justify-center mb-4">
                   <span className="text-2xl font-bold text-indigo-600">3</span>
@@ -77,15 +136,44 @@ export default function Home() {
                 </p>
               </CardContent>
             </Card>
-          </div>
+            </motion.div>
+          </motion.div>
         </div>
 
         {/* Features Section */}
         <div className="max-w-6xl mx-auto mb-16">
-          <h2 className="text-3xl font-bold text-center mb-12 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Why Lumen Later?</h2>
+          <motion.h2 
+            className="text-3xl font-bold text-center mb-12 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            Why Lumen Later?
+          </motion.h2>
           
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="space-y-4">
+          <motion.div 
+            className="grid md:grid-cols-2 gap-8"
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={{
+              hidden: { opacity: 0 },
+              visible: {
+                opacity: 1,
+                transition: {
+                  staggerChildren: 0.1
+                }
+              }
+            }}
+          >
+            <motion.div 
+              className="space-y-4"
+              variants={{
+                hidden: { opacity: 0, x: -20 },
+                visible: { opacity: 1, x: 0 }
+              }}
+            >
               <h3 className="text-xl font-semibold flex items-center gap-2">
                 <span className="text-2xl">🔒</span> Fully Decentralized
               </h3>
@@ -93,9 +181,15 @@ export default function Home() {
                 No centralized authority. Smart contracts handle everything from credit assessment 
                 to payment distribution automatically.
               </p>
-            </div>
+            </motion.div>
 
-            <div className="space-y-4">
+            <motion.div 
+              className="space-y-4"
+              variants={{
+                hidden: { opacity: 0, x: -20 },
+                visible: { opacity: 1, x: 0 }
+              }}
+            >
               <h3 className="text-xl font-semibold flex items-center gap-2">
                 <span className="text-2xl">⚡</span> Instant Settlement
               </h3>
@@ -103,9 +197,15 @@ export default function Home() {
                 Merchants receive payments instantly from the liquidity pool. 
                 No waiting days or weeks for bank settlements.
               </p>
-            </div>
+            </motion.div>
 
-            <div className="space-y-4">
+            <motion.div 
+              className="space-y-4"
+              variants={{
+                hidden: { opacity: 0, x: -20 },
+                visible: { opacity: 1, x: 0 }
+              }}
+            >
               <h3 className="text-xl font-semibold flex items-center gap-2">
                 <span className="text-2xl">💎</span> Collateral-Based Credit
               </h3>
@@ -113,9 +213,15 @@ export default function Home() {
                 Users lock LP tokens as collateral to access credit. 
                 The more you provide to the protocol, the more you can borrow.
               </p>
-            </div>
+            </motion.div>
 
-            <div className="space-y-4">
+            <motion.div 
+              className="space-y-4"
+              variants={{
+                hidden: { opacity: 0, x: -20 },
+                visible: { opacity: 1, x: 0 }
+              }}
+            >
               <h3 className="text-xl font-semibold flex items-center gap-2">
                 <span className="text-2xl">📈</span> Earn Yield
               </h3>
@@ -123,12 +229,17 @@ export default function Home() {
                 Liquidity providers earn yield from loan interest. 
                 A sustainable model that benefits all participants.
               </p>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </div>
 
         {!isConnected ? (
-          <div className="max-w-lg mx-auto mb-16">
+          <motion.div 
+            className="max-w-lg mx-auto mb-16"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+          >
             <Card className="shadow-lg border-2 border-blue-100 bg-gradient-to-br from-white to-blue-50/30">
               <CardHeader>
                 <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -146,20 +257,55 @@ export default function Home() {
                 </p>
               </CardContent>
             </Card>
-          </div>
+          </motion.div>
         ) : null}
 
         {/* Participant Roles Section - Always Visible */}
         <div className="max-w-6xl mx-auto mb-16">
-          <h2 className="text-3xl font-bold text-center mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Choose Your Role</h2>
-          <p className="text-center text-gray-600 mb-12 max-w-2xl mx-auto">
+          <motion.h2 
+            className="text-3xl font-bold text-center mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            Choose Your Role
+          </motion.h2>
+          <motion.p 
+            className="text-center text-gray-600 mb-12 max-w-2xl mx-auto"
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+          >
             The Lumen Later protocol supports three types of participants. 
             {!isConnected && " Connect your wallet to get started."}
-          </p>
+          </motion.p>
           
-          <div className="grid md:grid-cols-3 gap-8">
+          <motion.div 
+            className="grid md:grid-cols-3 gap-8"
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={{
+              hidden: { opacity: 0 },
+              visible: {
+                opacity: 1,
+                transition: {
+                  staggerChildren: 0.15
+                }
+              }
+            }}
+          >
             {/* User Role */}
-            <Card className="hover:shadow-xl transition-all duration-300 border-2 border-blue-100 hover:border-blue-300 bg-gradient-to-br from-white to-blue-50/30">
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0 }
+              }}
+              whileHover={{ y: -8, transition: { duration: 0.3 } }}
+            >
+              <Card className="hover:shadow-xl transition-all duration-300 border-2 border-blue-100 hover:border-blue-300 bg-gradient-to-br from-white to-blue-50/30 h-full">
               <CardHeader>
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mb-4">
                   <CreditCard className="h-6 w-6 text-blue-600" />
@@ -185,10 +331,18 @@ export default function Home() {
                   </Button>
                 )}
               </CardContent>
-            </Card>
+              </Card>
+            </motion.div>
 
             {/* Merchant Role */}
-            <Card className="hover:shadow-xl transition-all duration-300 border-2 border-purple-100 hover:border-purple-300 bg-gradient-to-br from-white to-purple-50/30">
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0 }
+              }}
+              whileHover={{ y: -8, transition: { duration: 0.3 } }}
+            >
+              <Card className="hover:shadow-xl transition-all duration-300 border-2 border-purple-100 hover:border-purple-300 bg-gradient-to-br from-white to-purple-50/30 h-full">
               <CardHeader>
                 <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-purple-200 rounded-full flex items-center justify-center mb-4">
                   <Store className="h-6 w-6 text-purple-600" />
@@ -214,10 +368,18 @@ export default function Home() {
                   </Button>
                 )}
               </CardContent>
-            </Card>
+              </Card>
+            </motion.div>
 
             {/* LP Role */}
-            <Card className="hover:shadow-xl transition-all duration-300 border-2 border-indigo-100 hover:border-indigo-300 bg-gradient-to-br from-white to-indigo-50/30">
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0 }
+              }}
+              whileHover={{ y: -8, transition: { duration: 0.3 } }}
+            >
+              <Card className="hover:shadow-xl transition-all duration-300 border-2 border-indigo-100 hover:border-indigo-300 bg-gradient-to-br from-white to-indigo-50/30 h-full">
               <CardHeader>
                 <div className="w-12 h-12 bg-gradient-to-br from-indigo-100 to-indigo-200 rounded-full flex items-center justify-center mb-4">
                   <Wallet className="h-6 w-6 text-indigo-600" />
@@ -243,13 +405,26 @@ export default function Home() {
                   </Button>
                 )}
               </CardContent>
-            </Card>
-          </div>
+              </Card>
+            </motion.div>
+          </motion.div>
         </div>
 
         {/* CTA Section */}
-        <div className="text-center mb-16">
-          <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-12 max-w-4xl mx-auto border border-blue-100">
+        <motion.div 
+          className="text-center mb-16"
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+        >
+          <motion.div 
+            className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-12 max-w-4xl mx-auto border border-blue-100"
+            initial={{ y: 20 }}
+            whileInView={{ y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+          >
             <h2 className="text-2xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Ready to Get Started?</h2>
             <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
               Join the future of decentralized finance on Stellar. 
@@ -273,8 +448,8 @@ export default function Home() {
                 </Button>
               </div>
             )}
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </main>
     </div>
   );
