@@ -87,11 +87,9 @@ pnpm run build                  # Build for production
 | **Mainnet** | Production | TBD |
 
 ### Testnet Contract Addresses
-- BNPL Core: `CBQHNAXSI55GX2GN6D67GK7BHVPSLJUGZQEU7WJ5LKR5PNUCGLIMAO4K`
-- USDC Token: `CAQCFVLOBK5GIULPNZRGATJJMIZL5BSP7X5YJVMGCPTUEPFM4AVSRCJU`
-- LP Token: `CDFBKX5MWBF5QXQYXWGQZXFWQJPTKMJDGVR4QHQV4NLFNZ7XLJFLR2SJ`
-
-Local addresses in `.stellar/contract-ids/`
+- BNPL Core: `CC7KPNSQWP2FKOAXMDI7LN7FREPJNQM44QO4VAL5WDDCAV4OC2YDGOWY`
+- USDC Token: `CBNOIIPYSYNBH477KUBOX5VRWUIW2PLDF4TE52GGYWRKSQM4BMD5GHK2`
+- LP Token: `CDDIYSWIAPZALYJUT47YY33NTBYY6KXYXBMU6AY4KQ6FZJ7N3JCKPBEB`
 
 ## 🚀 Roadmap
 
@@ -107,7 +105,7 @@ Security is our top priority:
 - Comprehensive test coverage
 - Regular security audits
 
-**Report vulnerabilities**: security@LumenLater-protocol.com
+**Report vulnerabilities**: sangwon0001@gmail.com
 
 ## 🤝 Contributing
 
