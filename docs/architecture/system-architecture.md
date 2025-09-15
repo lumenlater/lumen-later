@@ -296,24 +296,24 @@ caching_layers:
 ```mermaid
 graph LR
     subgraph "Event Sources"
-        BC[Blockchain Events] ✅
-        UI[User Actions] ✅
-        SY[System Events] ⚠️
+        BC["Blockchain Events ✅"]
+        UI["User Actions ✅"]
+        SY["System Events ⚠️"]
     end
 
     subgraph "Event Bus"
-        EB[RabbitMQ/Kafka] 📋
+        EB["RabbitMQ/Kafka 📋"]
     end
 
     subgraph "Event Processors"
-        EP1[State Synchronizer] 🔄
-        EP2[Notification Service] 📋
-        EP3[Analytics Pipeline] 📋
-        EP4[Audit Logger] ⚠️
+        EP1["State Synchronizer 🔄"]
+        EP2["Notification Service 📋"]
+        EP3["Analytics Pipeline 📋"]
+        EP4["Audit Logger ⚠️"]
     end
 
     subgraph "Event Store"
-        ES[Event Database] ⚠️
+        ES["Event Database ⚠️"]
     end
 
     BC --> EB
@@ -485,37 +485,37 @@ retention_policies:
 ```mermaid
 graph TD
     subgraph "Perimeter Security"
-        WAF[Web Application Firewall] 📋
-        DDO[DDoS Protection] 📋
-        CDN[CDN Security] 📋
+        WAF["Web Application Firewall 📋"]
+        DDO["DDoS Protection 📋"]
+        CDN["CDN Security 📋"]
     end
 
     subgraph "Application Security"
-        AUTH[Authentication Layer] ✅
-        AUTHZ[Authorization Layer] ⚠️
-        SESS[Session Management] ⚠️
-        CSRF[CSRF Protection] ✅
+        AUTH["Authentication Layer ✅"]
+        AUTHZ["Authorization Layer ⚠️"]
+        SESS["Session Management ⚠️"]
+        CSRF["CSRF Protection ✅"]
     end
 
     subgraph "API Security"
-        RATE[Rate Limiting] 📋
-        CORS[CORS Policy] ✅
-        JWT[JWT Validation] 📋
-        SIGN[Request Signing] 📋
+        RATE["Rate Limiting 📋"]
+        CORS["CORS Policy ✅"]
+        JWT["JWT Validation 📋"]
+        SIGN["Request Signing 📋"]
     end
 
     subgraph "Data Security"
-        ENC[Encryption at Rest] ⚠️
-        TLS[TLS 1.3] ✅
-        HSM[Hardware Security Module] 📋
-        VAULT[Secret Management] 📋
+        ENC["Encryption at Rest ⚠️"]
+        TLS["TLS 1.3 ✅"]
+        HSM["Hardware Security Module 📋"]
+        VAULT["Secret Management 📋"]
     end
 
     subgraph "Smart Contract Security"
-        AUDIT[Audited Contracts] 📋
-        PAUSE[Emergency Pause] ✅
-        MULTI[Multisig Admin] 📋
-        TIME[Timelock] 📋
+        AUDIT["Audited Contracts 📋"]
+        PAUSE["Emergency Pause ✅"]
+        MULTI["Multisig Admin 📋"]
+        TIME["Timelock 📋"]
     end
 ```
 
@@ -626,31 +626,31 @@ compliance:
 graph TB
     subgraph "Production Environment [TODO]"
         subgraph "Region 1 - Primary"
-            LB1[Load Balancer] 📋
+            LB1["Load Balancer 📋"]
             subgraph "Kubernetes Cluster"
-                API1[API Pods] 📋
-                WEB1[Web Pods] 📋
-                WORK1[Worker Pods] 📋
+                API1["API Pods 📋"]
+                WEB1["Web Pods 📋"]
+                WORK1["Worker Pods 📋"]
             end
-            DB1[(Primary DB)] ✅
-            CACHE1[(Redis Primary)] 📋
+            DB1[("Primary DB ✅")]
+            CACHE1[("Redis Primary 📋")]
         end
 
         subgraph "Region 2 - Secondary [TODO]"
-            LB2[Load Balancer] 📋
+            LB2["Load Balancer 📋"]
             subgraph "Kubernetes Cluster"
-                API2[API Pods] 📋
-                WEB2[Web Pods] 📋
-                WORK2[Worker Pods] 📋
+                API2["API Pods 📋"]
+                WEB2["Web Pods 📋"]
+                WORK2["Worker Pods 📋"]
             end
-            DB2[(Replica DB)] 📋
-            CACHE2[(Redis Replica)] 📋
+            DB2[("Replica DB 📋")]
+            CACHE2[("Redis Replica 📋")]
         end
 
         subgraph "Global Services [PARTIAL]"
-            CDN[CloudFlare CDN] 📋
-            DNS[Vercel DNS] ✅
-            S3[S3 Storage] 📋
+            CDN["CloudFlare CDN 📋"]
+            DNS["Vercel DNS ✅"]
+            S3["S3 Storage 📋"]
         end
     end
 
@@ -767,36 +767,36 @@ stages:
 graph TD
     subgraph "Merchant Integration Layer"
         subgraph "SDKs & Libraries"
-            JS[JavaScript SDK] 📋
-            REACT[React Components] 📋
-            NODE[Node.js SDK] 📋
-            PHP[PHP SDK] 📋
-            PYTHON[Python SDK] 📋
-            RUBY[Ruby SDK] 📋
+            JS["JavaScript SDK 📋"]
+            REACT["React Components 📋"]
+            NODE["Node.js SDK 📋"]
+            PHP["PHP SDK 📋"]
+            PYTHON["Python SDK 📋"]
+            RUBY["Ruby SDK 📋"]
         end
 
         subgraph "Integration Methods"
-            API[REST API] ⚠️
-            WIDGET[Payment Widget] 📋
-            HOSTED[Hosted Checkout] 📋
-            EMBED[Embedded Checkout] 📋
-            QR[QR Code Payment] 📋
+            API["REST API ⚠️"]
+            WIDGET["Payment Widget 📋"]
+            HOSTED["Hosted Checkout 📋"]
+            EMBED["Embedded Checkout 📋"]
+            QR["QR Code Payment 📋"]
         end
 
         subgraph "Platform Plugins"
-            SHOP[Shopify Plugin] 📋
-            WOO[WooCommerce] 📋
-            MAG[Magento] 📋
-            PRESTA[PrestaShop] 📋
-            CUSTOM[Custom Integration] ⚠️
+            SHOP["Shopify Plugin 📋"]
+            WOO["WooCommerce 📋"]
+            MAG["Magento 📋"]
+            PRESTA["PrestaShop 📋"]
+            CUSTOM["Custom Integration ⚠️"]
         end
 
         subgraph "Developer Tools"
-            PORTAL[Developer Portal] 📋
-            SANDBOX[Sandbox Environment] 📋
-            DOCS[API Documentation] ⚠️
-            POSTMAN[Postman Collection] 📋
-            CLI[CLI Tools] 📋
+            PORTAL["Developer Portal 📋"]
+            SANDBOX["Sandbox Environment 📋"]
+            DOCS["API Documentation ⚠️"]
+            POSTMAN["Postman Collection 📋"]
+            CLI["CLI Tools 📋"]
         end
     end
 
@@ -805,8 +805,8 @@ graph TD
     NODE --> API
     SHOP --> API
     WOO --> API
-    API --> WEBHOOK[Webhook System] 📋
-    API --> GATEWAY[API Gateway] 📋
+    API --> WEBHOOK["Webhook System 📋"]
+    API --> GATEWAY["API Gateway 📋"]
 ```
 
 ### 2. Merchant SDK Architecture 📋 **[TODO]**
@@ -1025,26 +1025,26 @@ developer_portal:
 ```mermaid
 graph TD
     subgraph "LumenLater Platform"
-        CORE[Core System]
-        SDK[Merchant SDKs] 📋
-        PLUGINS[Platform Plugins] 📋
+        CORE["Core System"]
+        SDK["Merchant SDKs 📋"]
+        PLUGINS["Platform Plugins 📋"]
     end
 
     subgraph "Blockchain Integrations"
-        STELLAR[Stellar Network] ✅
-        ORACLE[Price Oracles] 📋
+        STELLAR["Stellar Network ✅"]
+        ORACLE["Price Oracles 📋"]
     end
 
     subgraph "Financial Services"
-        BANK[Banking APIs] 📋
-        PAYMENT[Payment Gateways] 📋
-        KYC[KYC/KYB Providers] 📋
+        BANK["Banking APIs 📋"]
+        PAYMENT["Payment Gateways 📋"]
+        KYC["KYC/KYB Providers 📋"]
     end
 
     subgraph "Infrastructure"
-        CLOUD[Cloud Services] ⚠️
-        MONITOR[Monitoring Services] 📋
-        NOTIFY[Notification Services] 📋
+        CLOUD["Cloud Services ⚠️"]
+        MONITOR["Monitoring Services 📋"]
+        NOTIFY["Notification Services 📋"]
     end
 
     CORE <--> STELLAR
@@ -1251,29 +1251,29 @@ interface OptimizationTechniques {
 ```mermaid
 graph TD
     subgraph "Data Collection"
-        APP[Application Metrics] 📋
-        LOG[Application Logs] ⚠️
-        TRACE[Distributed Tracing] 📋
-        EVENT[Event Stream] ⚠️
+        APP["Application Metrics 📋"]
+        LOG["Application Logs ⚠️"]
+        TRACE["Distributed Tracing 📋"]
+        EVENT["Event Stream ⚠️"]
     end
 
     subgraph "Processing [TODO]"
-        PROM[Prometheus] 📋
-        ELK[ELK Stack] 📋
-        JAEGER[Jaeger] 📋
-        KAFKA[Kafka] 📋
+        PROM["Prometheus 📋"]
+        ELK["ELK Stack 📋"]
+        JAEGER["Jaeger 📋"]
+        KAFKA["Kafka 📋"]
     end
 
     subgraph "Visualization [TODO]"
-        GRAF[Grafana] 📋
-        KIB[Kibana] 📋
-        CUSTOM[Custom Dashboards] 📋
+        GRAF["Grafana 📋"]
+        KIB["Kibana 📋"]
+        CUSTOM["Custom Dashboards 📋"]
     end
 
     subgraph "Alerting [TODO]"
-        ALERT[AlertManager] 📋
-        PAGE[PagerDuty] 📋
-        SLACK[Slack] 📋
+        ALERT["AlertManager 📋"]
+        PAGE["PagerDuty 📋"]
+        SLACK["Slack 📋"]
     end
 
     APP --> PROM
