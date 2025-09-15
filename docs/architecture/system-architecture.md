@@ -372,29 +372,38 @@ graph TD
         BM[Bill Management]
         LP[Liquidity Provision]
         RM[Risk Management]
+        CS[Credit Scoring]
+        FD[Fraud Detection]
     end
 
     subgraph "Supporting Domain"
         US[User Service]
         MS[Merchant Service]
         NS[Notification Service]
+        COL[Collection Service]
+        SUP[Customer Support]
     end
 
     subgraph "Generic Domain"
         AU[Authentication]
         LG[Logging]
         MN[Monitoring]
+        COMP[Compliance]
     end
 
     BM --> US
     BM --> MS
     LP --> RM
     BM --> NS
+    RM --> CS
+    CS --> FD
+    BM --> COL
     US --> AU
     MS --> AU
     BM --> LG
     LP --> LG
     RM --> MN
+    FD --> COMP
 ```
 
 ## Data Architecture
@@ -449,6 +458,44 @@ interface ConflictResolution {
 }
 ```
 
+### 3. Database Sharding Strategy 📋 **[TODO]**
+
+```yaml
+sharding_strategy:
+  shard_key: "user_wallet_address"
+
+  shard_distribution:
+    method: "consistent_hashing"
+    replication_factor: 3
+    shard_count: 16  # Start with 16, scale to 256
+
+  shard_mapping:
+    bills_collection:
+      shard_key: "user_address"
+      secondary_key: "created_at"
+
+    merchants_collection:
+      shard_key: "merchant_id"
+      secondary_key: "region"
+
+    transactions_collection:
+      shard_key: "user_address"
+      time_series: true
+      retention: "2 years hot, archive after"
+
+  cross_shard_queries:
+    strategy: "scatter_gather"
+    optimization: "query_routing"
+    cache: "result_caching"
+
+  migration:
+    strategy: "online_migration"
+    downtime: "zero"
+    rollback: "automatic"
+
+  status: "📋 [TODO - Currently single MongoDB instance]"
+```
+
 ### 3. Data Retention & Archival
 
 ```yaml
@@ -476,6 +523,146 @@ retention_policies:
     retention: regulatory_requirement
     audit_trail: complete
     encryption: end_to_end
+```
+
+## Risk Management & Credit Scoring
+
+### 1. Current Credit System ✅ **[DONE - Collateral-Based Only]**
+
+```yaml
+current_implementation:
+  type: "Over-collateralization only"
+  mechanism: "111% LP token collateral requirement"
+
+  credit_check_process:
+    1. check_lp_balance: "User's LP token balance"
+    2. calculate_borrowing_power: "LP balance * 0.9 (90% LTV)"
+    3. verify_collateral: "Ensure 111% collateral ratio"
+    4. lock_collateral: "Lock LP tokens during loan period"
+
+  decision_logic:
+    - sufficient_collateral: "Approve loan"
+    - insufficient_collateral: "Reject loan"
+
+  status: "✅ [DONE - Basic implementation]"
+```
+
+### 2. Future Credit Scoring System 📋 **[TODO]**
+
+```yaml
+planned_credit_scoring:
+  on_chain_factors: 📋 [TODO]
+    - wallet_age: "Age of Stellar wallet"
+    - transaction_history: "Past transaction patterns"
+    - repayment_history: "Previous BNPL repayments"
+    - liquidation_events: "Past liquidations"
+    - defi_activity: "Other DeFi protocol usage"
+
+  off_chain_factors: 📋 [TODO]
+    - kyc_verification: "Identity verification level"
+    - social_reputation: "Social media verification"
+    - merchant_vouching: "Merchant trust score"
+    - external_credit_bureau: "Traditional credit score"
+
+  scoring_model: 📋 [TODO]
+    algorithm: "Machine Learning based"
+    update_frequency: "Real-time"
+    score_range: "300-850"
+    decision_threshold: "600+"
+
+  benefits_of_upgrade:
+    - under_collateralized_loans: "For high credit users"
+    - dynamic_interest_rates: "Based on risk profile"
+    - higher_limits: "For trusted borrowers"
+    - instant_approval: "For repeat customers"
+
+  implementation_status: "📋 [TODO - Not implemented]"
+```
+
+### 3. Current Risk Parameters ✅ **[DONE]**
+
+```yaml
+risk_parameters:
+  collateral_ratio: 111%  # 1.11x
+  loan_to_value: 90%      # 0.9x
+  grace_period: 14_days   # Interest-free
+  late_fee_apr: 30%       # After grace period
+  liquidation_threshold: 1.0  # Health factor
+  liquidation_penalty: 10%     # Incentive for liquidators
+
+  merchant_fee: 1.5%      # Revenue source
+
+  status: "✅ [IMPLEMENTED - Working in production]"
+```
+
+### 4. Fraud Detection System 📋 **[TODO]**
+
+```mermaid
+graph LR
+    subgraph "Detection Layers"
+        RT["Real-time Detection"]
+        ML["ML Models"]
+        RULES["Rule Engine"]
+        MANUAL["Manual Review"]
+    end
+
+    subgraph "Fraud Signals"
+        VEL["Velocity Checks"]
+        GEO["Geo-location"]
+        DEV["Device Fingerprint"]
+        BEH["Behavioral Analysis"]
+    end
+
+    subgraph "Actions"
+        BLOCK["Block Transaction"]
+        FLAG["Flag for Review"]
+        ALLOW["Allow"]
+        LIMIT["Reduce Limits"]
+    end
+
+    VEL --> RT
+    GEO --> RT
+    DEV --> RT
+    BEH --> ML
+    RT --> RULES
+    ML --> RULES
+    RULES --> BLOCK
+    RULES --> FLAG
+    RULES --> ALLOW
+    FLAG --> MANUAL
+    MANUAL --> LIMIT
+```
+
+### 5. Collection & Recovery System 📋 **[TODO]**
+
+```yaml
+collection_workflow:
+  stages:
+    pre_due:
+      - reminder_3_days: "SMS/Email reminder"
+      - reminder_1_day: "Push notification"
+
+    grace_period:
+      - day_1: "Friendly reminder"
+      - day_7: "Warning notice"
+      - day_13: "Final notice"
+
+    overdue:
+      - day_14: "Late fee applied"
+      - day_21: "Liquidation warning"
+      - day_30: "Liquidation executed"
+
+    recovery: 📋 [TODO]
+      - internal_team: "First 30 days"
+      - collection_agency: "After 30 days"
+      - legal_action: "High value cases"
+
+  communication_channels:
+    - email: ✅ [Basic]
+    - sms: 📋 [TODO]
+    - push_notifications: 📋 [TODO]
+    - in_app_messages: ⚠️ [PARTIAL]
+    - phone_calls: 📋 [TODO]
 ```
 
 ## Security Architecture
@@ -608,6 +795,71 @@ compliance:
     anomaly_detection: ml_based
     incident_response: automated_and_manual
     forensics: full_packet_capture
+```
+
+## Compliance & Regulatory Framework 📋 **[TODO]**
+
+### 1. Regulatory Compliance
+
+```yaml
+regulatory_requirements:
+  financial_regulations:
+    - consumer_lending: "TILA, ECOA compliance"
+    - fair_lending: "Equal credit opportunity"
+    - usury_laws: "State-specific interest caps"
+    - disclosure: "APR, fees, terms transparency"
+
+  data_protection:
+    - gdpr: "EU data protection" ⚠️ [PARTIAL]
+    - ccpa: "California privacy" 📋 [TODO]
+    - pii_handling: "Personal data encryption" ⚠️ [PARTIAL]
+    - right_to_delete: "Data deletion requests" 📋 [TODO]
+
+  aml_kyc:
+    - identity_verification: "Multi-level KYC" 📋 [TODO]
+    - transaction_monitoring: "Suspicious activity" 📋 [TODO]
+    - reporting: "SAR/CTR filing" 📋 [TODO]
+    - sanctions_screening: "OFAC compliance" 📋 [TODO]
+
+  implementation_status: "📋 [TODO - Basic KYC only]"
+```
+
+### 2. Audit Trail System
+
+```mermaid
+graph TD
+    subgraph "Event Sources"
+        USER["User Actions"]
+        SYSTEM["System Events"]
+        ADMIN["Admin Operations"]
+        SMART["Smart Contracts"]
+    end
+
+    subgraph "Audit Pipeline"
+        CAPTURE["Event Capture"]
+        ENRICH["Data Enrichment"]
+        SIGN["Digital Signature"]
+        STORE["Immutable Storage"]
+    end
+
+    subgraph "Audit Features"
+        QUERY["Audit Query"]
+        REPORT["Compliance Reports"]
+        ALERT["Alert System"]
+        EXPORT["Data Export"]
+    end
+
+    USER --> CAPTURE
+    SYSTEM --> CAPTURE
+    ADMIN --> CAPTURE
+    SMART --> CAPTURE
+    CAPTURE --> ENRICH
+    ENRICH --> SIGN
+    SIGN --> STORE
+    STORE --> QUERY
+    STORE --> REPORT
+    STORE --> ALERT
+    STORE --> EXPORT
 ```
 
 ## Deployment Architecture
@@ -1153,6 +1405,93 @@ integration_patterns:
     protocol: websocket_or_sse
     reconnection: automatic
     buffering: client_side
+
+  rate_limiting: 📋 [TODO]
+    strategy: token_bucket
+    limits:
+      anonymous: "10 req/min"
+      authenticated: "100 req/min"
+      merchant: "1000 req/min"
+      premium: "10000 req/min"
+    headers:
+      - X-RateLimit-Limit
+      - X-RateLimit-Remaining
+      - X-RateLimit-Reset
+
+  idempotency: 📋 [TODO]
+    key_header: "Idempotency-Key"
+    key_format: "UUID v4"
+    ttl: "24 hours"
+    storage: "Redis"
+    duplicate_handling: "Return cached response"
+```
+
+## Customer Support System 📋 **[TODO]**
+
+### 1. Support Infrastructure
+
+```yaml
+support_channels:
+  self_service: ⚠️ [PARTIAL]
+    - help_center: "FAQ and guides"
+    - chatbot: "AI-powered support"
+    - community_forum: "User community"
+    - video_tutorials: "How-to videos"
+
+  assisted_support: 📋 [TODO]
+    - live_chat: "Real-time chat support"
+    - email_support: "Ticket system"
+    - phone_support: "Voice support"
+    - video_support: "Screen sharing"
+
+  escalation_matrix:
+    tier_1: "Chatbot and self-service"
+    tier_2: "Customer service agents"
+    tier_3: "Technical specialists"
+    tier_4: "Management escalation"
+
+  sla_targets:
+    first_response: "< 2 hours"
+    resolution_time: "< 24 hours"
+    satisfaction_score: "> 90%"
+```
+
+### 2. Ticketing System 📋 **[TODO]**
+
+```mermaid
+graph LR
+    subgraph "Ticket Sources"
+        EMAIL["Email"]
+        CHAT["Live Chat"]
+        FORM["Web Form"]
+        API["API Integration"]
+    end
+
+    subgraph "Ticket Management"
+        CREATE["Create Ticket"]
+        ASSIGN["Auto-Assignment"]
+        PRIORITY["Prioritization"]
+        TRACK["Status Tracking"]
+    end
+
+    subgraph "Resolution"
+        AGENT["Agent Action"]
+        ESCALATE["Escalation"]
+        RESOLVE["Resolution"]
+        FEEDBACK["Customer Feedback"]
+    end
+
+    EMAIL --> CREATE
+    CHAT --> CREATE
+    FORM --> CREATE
+    API --> CREATE
+    CREATE --> ASSIGN
+    ASSIGN --> PRIORITY
+    PRIORITY --> TRACK
+    TRACK --> AGENT
+    AGENT --> ESCALATE
+    AGENT --> RESOLVE
+    RESOLVE --> FEEDBACK
 ```
 
 ## Performance & Scalability
@@ -1234,6 +1573,45 @@ interface OptimizationTechniques {
     state_rent: 'ttl_management'
   }
 }
+```
+
+### 4. Resilience Patterns 📋 **[TODO]**
+
+```yaml
+circuit_breaker:
+  implementation: "📋 [TODO]"
+
+  configuration:
+    failure_threshold: 5  # failures to open circuit
+    success_threshold: 2  # successes to close circuit
+    timeout: 30000  # ms before half-open attempt
+
+  states:
+    closed: "Normal operation"
+    open: "Fast fail, return cached/default"
+    half_open: "Test with single request"
+
+  monitoring:
+    metrics: ["failure_rate", "response_time", "circuit_state"]
+    alerting: ["state_changes", "threshold_breaches"]
+
+retry_patterns:
+  exponential_backoff:
+    initial_delay: 1000  # ms
+    max_delay: 30000
+    multiplier: 2
+    jitter: true
+
+  bulkhead:
+    thread_pools: "Isolated per service"
+    queue_size: 100
+    rejection_policy: "caller_runs"
+
+timeout_management:
+  api_calls: 30_seconds
+  database_queries: 5_seconds
+  blockchain_tx: 60_seconds
+  cache_operations: 100_ms
 ```
 
 ## Monitoring & Observability
