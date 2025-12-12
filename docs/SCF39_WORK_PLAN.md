@@ -1,6 +1,6 @@
 # SCF #39 Milestone Work Plan
 
-> Last Updated: 2024-12-12
+> Last Updated: 2025-12-12
 > Status: In Progress
 
 ## Overview
@@ -49,15 +49,17 @@ LP Token: CDFBKX5MWBF5QXQYXWGQZXFWQJPTKMJDGVR4QHQV4NLFNZ7XLJFLR2SJ
 
 ---
 
-### 1. Event Indexer
+### 1. Event Indexer ✅ IN PROGRESS
 **Branch:** `feat/event-indexer`
 **Priority:** 🔴 Critical (Tranche 1 Required)
 **Estimated Effort:** 3-5 days
 
-#### Requirements
-- Index on-chain events from all contracts
-- Store in database (MongoDB/PostgreSQL)
-- Provide API for frontend queries
+#### Architecture Decision: Mercury Classic
+Selected **Mercury** as the indexer solution:
+- Official Stellar/Soroban indexer service
+- Free tier available (testnet)
+- No contract modifications needed
+- Simple REST API for event queries
 
 #### Events to Index
 | Contract | Event | Data |
@@ -69,16 +71,20 @@ LP Token: CDFBKX5MWBF5QXQYXWGQZXFWQJPTKMJDGVR4QHQV4NLFNZ7XLJFLR2SJ
 | lp_token | Deposit | provider, amount, shares_minted |
 | lp_token | Withdraw | provider, amount, shares_burned |
 
-#### Architecture Options
-1. **Horizon Event Streaming** - Use Stellar Horizon API
-2. **Custom Indexer** - Poll contracts periodically
-3. **Mercury Indexer** - SDF-provided indexing service
+#### Setup Required
+```bash
+# 1. Get API key from Mercury dashboard: https://mercurydata.app
+# 2. Add to apps/web/.env:
+MERCURY_API_KEY=your_api_key_here
+```
 
 #### Deliverables
-- [ ] Event listener service
-- [ ] Database schema for events
-- [ ] REST API endpoints
-- [ ] Integration with frontend
+- [x] Database schema for events (Prisma)
+- [x] Mercury indexer service (TypeScript)
+- [x] REST API endpoints (`/api/indexer/*`)
+- [x] Setup documentation (`docs/EVENT_INDEXER.md`)
+- [ ] Frontend integration
+- [ ] Cron job for automated sync
 
 ---
 

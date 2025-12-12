@@ -183,6 +183,98 @@ model BlockchainReference {
   @@map("blockchain_references")
 }
 
+// ============================================
+// Event Indexer Models (SCF #39 Requirement)
+// ============================================
+
+// Indexed contract events from Stellar blockchain
+model ContractEvent {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+
+  // Event identification
+  contractId    String   // Which contract emitted the event
+  eventType     EventType
+  ledger        Int      // Ledger sequence number
+  txHash        String   // Transaction hash
+  timestamp     DateTime // Event timestamp from ledger
+
+  // Event data (flexible JSON for different event types)
+  data          Json
+
+  // Processing status
+  processed     Boolean @default(false)
+  processedAt   DateTime?
+
+  @@unique([txHash, eventType])
+  @@index([contractId])
+  @@index([eventType])
+  @@index([timestamp])
+  @@index([ledger])
+  @@map("contract_events")
+}
+
+enum EventType {
+  // BNPL Core events
+  BILL_CREATED
+  BILL_PAID
+  BILL_REPAID
+  BILL_LIQUIDATED
+  MERCHANT_ENROLLED
+  // LP Token events
+  DEPOSIT
+  WITHDRAW
+  BORROW
+  REPAY
+  // Token events
+  TRANSFER
+  MINT
+  BURN
+}
+
+// Protocol metrics snapshot (aggregated periodically)
+model ProtocolMetrics {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+
+  contractId    String   // BNPL contract ID
+  snapshotAt    DateTime // When this snapshot was taken
+
+  // Core metrics
+  tvl               Float    // Total Value Locked in USDC
+  totalBorrowed     Float    // Total amount borrowed
+  utilizationRate   Float    // borrowed / tvl * 100
+
+  // User metrics
+  totalUsers        Int      // Unique user addresses
+  totalMerchants    Int      // Enrolled merchants
+
+  // Transaction metrics
+  totalBills        Int      // Total bills created
+  activeBills       Int      // Bills in PAID status
+  totalTransactions Int      // Total protocol transactions
+
+  // Revenue metrics
+  totalFees         Float    // Total fees collected
+  totalLateFees     Float    // Late payment fees
+
+  @@index([contractId])
+  @@index([snapshotAt])
+  @@map("protocol_metrics")
+}
+
+// Cursor for event streaming (track last processed ledger)
+model IndexerCursor {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  updatedAt DateTime @updatedAt
+
+  contractId    String @unique
+  lastLedger    Int    // Last processed ledger sequence
+  lastTxHash    String? // Last processed transaction
+
+  @@map("indexer_cursors")
+}
+
 // Bill model for BNPL purchases (Simplified for POC)
 model Bill {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId

@@ -1,0 +1,61 @@
+// Prisma schema for PostgreSQL - Event Indexer (Goldsky)
+//
+// This is a separate schema for event data streamed by Goldsky Mirror.
+// App data (merchants, bills, etc.) remains in MongoDB (schema.prisma)
+//
+// Generate client: npx prisma generate --schema=prisma/schema.postgres.prisma
+// Push schema: npx prisma db push --schema=prisma/schema.postgres.prisma
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/client-postgres"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
+}
+
+/// Contract events indexed by Goldsky Mirror
+/// Table is auto-created by Goldsky pipeline, schema here for type safety
+model ContractEvent {
+  id         String   @id
+  contractId String   @map("contract_id")
+  topic      Json?    // Event topics array
+  data       Json?    // Event data payload
+  ledger     BigInt   // Ledger sequence number
+  txHash     String   @map("tx_hash")
+  timestamp  DateTime
+
+  // Goldsky metadata (auto-populated)
+  goldskyIngestedAt DateTime? @default(now()) @map("_goldsky_ingested_at")
+
+  @@index([contractId])
+  @@index([ledger])
+  @@index([timestamp])
+  @@index([txHash])
+  @@map("contract_events")
+}
+
+/// Protocol metrics snapshot (aggregated from events)
+model ProtocolSnapshot {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Metrics
+  totalEvents      Int      @default(0) @map("total_events")
+  totalUsers       Int      @default(0) @map("total_users")
+  totalMerchants   Int      @default(0) @map("total_merchants")
+  totalTransactions Int     @default(0) @map("total_transactions")
+
+  // By contract
+  bnplCoreEvents   Int      @default(0) @map("bnpl_core_events")
+  lpTokenEvents    Int      @default(0) @map("lp_token_events")
+  usdcTokenEvents  Int      @default(0) @map("usdc_token_events")
+
+  // Ledger info
+  latestLedger     BigInt?  @map("latest_ledger")
+
+  @@index([createdAt])
+  @@map("protocol_snapshots")
+}
