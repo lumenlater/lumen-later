@@ -21,8 +21,10 @@ pub trait TokenTrait {
     fn mint(env: Env, to: Address, amount: i128);
     
     fn burn(env: Env, from: Address, amount: i128);
-    
-    fn balance(env: Env, address: Address) -> i128;
+
+    fn burn_from(env: Env, spender: Address, from: Address, amount: i128);
+
+    fn balance(env: Env, id: Address) -> i128;
     
     fn transfer(env: Env, from: Address, to: Address, amount: i128);
     
@@ -156,6 +158,49 @@ impl TokenTrait for UsdcToken {
         env.storage().instance().set(&DataKey::TotalSupply, &(total_supply - amount));
         
         // Emit standard token event
+        TokenUtils::new(&env).events().burn(from.clone(), amount);
+    }
+
+    fn burn_from(env: Env, spender: Address, from: Address, amount: i128) {
+        spender.require_auth();
+
+        if amount <= 0 {
+            panic!("Amount must be positive");
+        }
+
+        // Check allowance
+        let allowance_key = DataKey::Allowance(from.clone(), spender.clone());
+        let allowance = env.storage().instance()
+            .get::<DataKey, i128>(&allowance_key)
+            .unwrap_or(0);
+
+        if allowance < amount {
+            panic!("Insufficient allowance");
+        }
+
+        // Check balance
+        let balance_key = DataKey::Balance(from.clone());
+        let balance = env.storage().instance()
+            .get::<DataKey, i128>(&balance_key)
+            .unwrap_or(0);
+
+        if balance < amount {
+            panic!("Insufficient balance");
+        }
+
+        // Decrease balance
+        env.storage().instance().set(&balance_key, &(balance - amount));
+
+        // Decrease allowance
+        env.storage().instance().set(&allowance_key, &(allowance - amount));
+
+        // Update total supply
+        let total_supply = env.storage().instance()
+            .get::<DataKey, i128>(&DataKey::TotalSupply)
+            .unwrap();
+        env.storage().instance().set(&DataKey::TotalSupply, &(total_supply - amount));
+
+        // Emit burn event
         TokenUtils::new(&env).events().burn(from.clone(), amount);
     }
     
@@ -406,5 +451,105 @@ mod test {
         
         assert_eq!(client.balance(&user1), amount - transfer_amount);
         assert_eq!(client.balance(&user2), transfer_amount);
+    }
+
+    #[test]
+    fn test_burn_from() {
+        let env = Env::default();
+        let contract_id = env.register(UsdcToken, ());
+        let client = UsdcTokenClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let owner = Address::generate(&env);
+        let spender = Address::generate(&env);
+
+        client.initialize(
+            &admin,
+            &String::from_str(&env, "Testnet USDC"),
+            &String::from_str(&env, "USDC"),
+            &7,
+            &1000_0000000
+        );
+
+        env.mock_all_auths();
+
+        // Mint tokens to owner
+        let mint_amount = 100_0000000i128;
+        client.mint(&owner, &mint_amount);
+
+        // Owner approves spender
+        let approve_amount = 50_0000000i128;
+        client.approve(&owner, &spender, &approve_amount, &1000);
+
+        // Spender burns from owner
+        let burn_amount = 30_0000000i128;
+        client.burn_from(&spender, &owner, &burn_amount);
+
+        // Verify results
+        assert_eq!(client.balance(&owner), mint_amount - burn_amount);
+        assert_eq!(client.allowance(&owner, &spender), approve_amount - burn_amount);
+        assert_eq!(client.total_supply(), mint_amount - burn_amount);
+    }
+
+    #[test]
+    #[should_panic(expected = "Insufficient allowance")]
+    fn test_burn_from_insufficient_allowance() {
+        let env = Env::default();
+        let contract_id = env.register(UsdcToken, ());
+        let client = UsdcTokenClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let owner = Address::generate(&env);
+        let spender = Address::generate(&env);
+
+        client.initialize(
+            &admin,
+            &String::from_str(&env, "Testnet USDC"),
+            &String::from_str(&env, "USDC"),
+            &7,
+            &1000_0000000
+        );
+
+        env.mock_all_auths();
+
+        // Mint tokens to owner
+        client.mint(&owner, &100_0000000i128);
+
+        // Owner approves small amount
+        client.approve(&owner, &spender, &10_0000000i128, &1000);
+
+        // Spender tries to burn more than allowed
+        client.burn_from(&spender, &owner, &50_0000000i128);
+    }
+
+    #[test]
+    #[should_panic(expected = "Insufficient balance")]
+    fn test_burn_from_insufficient_balance() {
+        let env = Env::default();
+        let contract_id = env.register(UsdcToken, ());
+        let client = UsdcTokenClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let owner = Address::generate(&env);
+        let spender = Address::generate(&env);
+
+        client.initialize(
+            &admin,
+            &String::from_str(&env, "Testnet USDC"),
+            &String::from_str(&env, "USDC"),
+            &7,
+            &1000_0000000
+        );
+
+        env.mock_all_auths();
+
+        // Mint small amount to owner
+        client.mint(&owner, &10_0000000i128);
+
+        // Owner approves large amount
+        client.approve(&owner, &spender, &100_0000000i128, &1000);
+
+        // Spender tries to burn more than balance
+        client.burn_from(&spender, &owner, &50_0000000i128);
     }
 }
