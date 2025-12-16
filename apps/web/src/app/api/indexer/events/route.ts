@@ -9,6 +9,7 @@ import { eventIndexer } from '@/services/event-indexer.service';
  * Query Parameters:
  * - contractId: Filter by contract address
  * - txHash: Filter by transaction hash
+ * - userAddress: Filter by user address (searches in topics)
  * - limit: Number of results (default: 50, max: 200)
  * - offset: Pagination offset (default: 0)
  * - startDate: Filter events after this date (ISO 8601)
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest) {
     const options = {
       contractId: searchParams.get('contractId') || undefined,
       txHash: searchParams.get('txHash') || undefined,
+      userAddress: searchParams.get('userAddress') || undefined,
       limit: Math.min(parseInt(searchParams.get('limit') || '50'), 200),
       offset: parseInt(searchParams.get('offset') || '0'),
       startDate: searchParams.get('startDate')

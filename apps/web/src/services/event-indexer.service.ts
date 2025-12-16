@@ -49,6 +49,7 @@ export interface EventQueryOptions {
   startLedger?: bigint;
   endLedger?: bigint;
   txHash?: string;
+  userAddress?: string;
 }
 
 export class EventIndexerService {
@@ -116,12 +117,14 @@ export class EventIndexerService {
       startLedger,
       endLedger,
       txHash,
+      userAddress,
     } = options;
 
     const where: any = {};
 
     if (contractId) where.contractId = contractId;
     if (txHash) where.transactionHash = txHash;
+    if (userAddress) where.topics = { contains: userAddress };
     if (startLedger || endLedger) {
       where.ledgerSequence = {};
       if (startLedger) where.ledgerSequence.gte = startLedger;

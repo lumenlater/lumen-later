@@ -11,11 +11,71 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { ArrowLeft, CreditCard, TrendingUp, DollarSign, Shield, Activity } from 'lucide-react';
+import { ArrowLeft, CreditCard, TrendingUp, DollarSign, Shield, Activity, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, useEffect } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import CONTRACT_IDS from '@/config/contracts';
+import { useQuery } from '@tanstack/react-query';
+
+interface ContractEvent {
+  id: string;
+  contractId: string;
+  contractName: string;
+  type: string | null;
+  topics: string | null;
+  data: string | null;
+  ledgerSequence: string;
+  ledgerClosedAt: string;
+  transactionHash: string;
+  transactionSuccessful: boolean;
+}
+
+interface EventsResponse {
+  events: ContractEvent[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+const CONTRACT_COLORS: Record<string, string> = {
+  BNPL_CORE: 'bg-purple-100 text-purple-800',
+  LP_TOKEN: 'bg-blue-100 text-blue-800',
+  USDC_TOKEN: 'bg-green-100 text-green-800',
+  UNKNOWN: 'bg-gray-100 text-gray-800',
+};
+
+function parseTopics(topics: string | null): { action: string; from?: string; to?: string } {
+  if (!topics) return { action: 'unknown' };
+  try {
+    const parsed = JSON.parse(topics);
+    const action = parsed[0]?.symbol || 'unknown';
+    const from = parsed[1]?.address;
+    const to = parsed[2]?.address;
+    return { action, from, to };
+  } catch {
+    return { action: 'unknown' };
+  }
+}
+
+function parseData(data: string | null): string {
+  if (!data) return '-';
+  try {
+    const parsed = JSON.parse(data);
+    if (parsed.i128) {
+      const amount = BigInt(parsed.i128) / BigInt(10 ** 7);
+      return `${amount.toString()} USDC`;
+    }
+    return JSON.stringify(parsed);
+  } catch {
+    return data;
+  }
+}
+
+function shortenAddress(address: string): string {
+  if (!address || address.length < 10) return address;
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
 
 export default function UserDashboard() {
   const { isConnected, publicKey } = useWallet();
@@ -36,6 +96,22 @@ export default function UserDashboard() {
   const { data: onChainBills, isLoading: onChainLoading } = useBillEventsByUser(publicKey);
   const { data: borrowingPower, isLoading: powerLoading } = useBorrowingPower(publicKey);
   const { data: debtInfo, isLoading: debtLoading } = useUserDebt(publicKey);
+
+  // Fetch user's blockchain transactions
+  const { data: userEvents, isLoading: eventsLoading } = useQuery<EventsResponse>({
+    queryKey: ['user-events', publicKey],
+    queryFn: async () => {
+      if (!publicKey) return { events: [], total: 0, limit: 20, offset: 0 };
+      const params = new URLSearchParams({
+        userAddress: publicKey,
+        limit: '20'
+      });
+      const res = await fetch(`/api/indexer/events?${params}`);
+      return res.json();
+    },
+    enabled: !!publicKey,
+    refetchInterval: 30000,
+  });
 
   // Combine on-chain and off-chain bills
   const bills = useMemo(() => {
@@ -526,6 +602,101 @@ export default function UserDashboard() {
                 <p className="text-gray-600">No bills found</p>
                 <p className="text-sm text-gray-500 mt-2">
                   When merchants create bills for you, they'll appear here
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Transactions Section */}
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Recent Transactions
+            </CardTitle>
+            <CardDescription>
+              Your recent blockchain transactions
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {eventsLoading ? (
+              <div className="text-center py-8">
+                <p className="text-gray-600">Loading transactions...</p>
+              </div>
+            ) : userEvents && userEvents.events.length > 0 ? (
+              <div className="space-y-3">
+                {userEvents.events.map((event) => {
+                  const { action, from, to } = parseTopics(event.topics);
+                  const amount = parseData(event.data);
+                  const isOutgoing = from === publicKey;
+
+                  return (
+                    <div
+                      key={event.id}
+                      className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-2">
+                          <Badge className={CONTRACT_COLORS[event.contractName] || CONTRACT_COLORS.UNKNOWN}>
+                            {event.contractName}
+                          </Badge>
+                          <Badge variant="outline" className="capitalize">
+                            {action}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={isOutgoing ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}
+                          >
+                            {isOutgoing ? 'Sent' : 'Received'}
+                          </Badge>
+                        </div>
+                        <span className="font-medium">{amount}</span>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-sm text-gray-600">
+                        {from && from !== publicKey && (
+                          <div>
+                            <span className="text-gray-500">From: </span>
+                            <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">
+                              {shortenAddress(from)}
+                            </code>
+                          </div>
+                        )}
+                        {to && to !== publicKey && (
+                          <div>
+                            <span className="text-gray-500">To: </span>
+                            <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">
+                              {shortenAddress(to)}
+                            </code>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t">
+                        <span className="text-xs text-gray-500">
+                          {new Date(event.ledgerClosedAt).toLocaleString()}
+                        </span>
+                        <a
+                          href={`https://stellar.expert/explorer/testnet/tx/${event.transactionHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                        >
+                          View on Explorer
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No transactions found</p>
+                <p className="text-sm text-gray-500 mt-2">
+                  Your blockchain transactions will appear here
                 </p>
               </div>
             )}
