@@ -1,8 +1,47 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, symbol_short, Address, Env, Map};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Map};
 use soroban_sdk::token::{TokenInterface, TokenClient};
 use soroban_token_sdk::metadata::TokenMetadata;
 use bnpl_core_interface::BnplCoreClient;
+
+// === EVENT TYPES ===
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct DepositEvent {
+    pub user: Address,
+    pub amount: i128,
+    pub shares_minted: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct WithdrawEvent {
+    pub user: Address,
+    pub amount: i128,
+    pub shares_burned: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct BorrowEvent {
+    pub borrower: Address,
+    pub amount: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct RepayEvent {
+    pub repayer: Address,
+    pub amount: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct LiquidationBurnEvent {
+    pub user: Address,
+    pub amount_burned: i128,
+    pub fee: i128,
+}
 
 const DECIMALS: u128 = 1_000_000_000;
 
@@ -141,9 +180,19 @@ impl LpToken {
         // Update total supply
         let new_supply = Self::supply(&env) + shares_to_mint;
         env.storage().instance().set(&symbol_short!("supply"), &new_supply);
-        
+
         Self::save_state(&env, balances, user_index);
-        
+
+        // Emit deposit event
+        env.events().publish(
+            (symbol_short!("deposit"), from.clone()),
+            DepositEvent {
+                user: from,
+                amount,
+                shares_minted: amount,
+            }
+        );
+
         // Return actual LP tokens minted (in amount, not shares)
         amount
     }
@@ -179,10 +228,20 @@ impl LpToken {
         env.storage().instance().set(&symbol_short!("supply"), &new_supply);
         
         Self::save_state(&env, balances, user_index);
-        
+
         // Transfer underlying tokens back to user
         underlying_client.transfer(&env.current_contract_address(), &from, &underlying_amount);
-        
+
+        // Emit withdraw event
+        env.events().publish(
+            (symbol_short!("withdraw"), from.clone()),
+            WithdrawEvent {
+                user: from,
+                amount: underlying_amount,
+                shares_burned: lp_amount,
+            }
+        );
+
         underlying_amount
     }
 
@@ -220,17 +279,26 @@ impl LpToken {
         // Only BNPL Core can call this
         let bnpl_core: Address = env.storage().instance().get(&symbol_short!("bnpl_core")).unwrap();
         bnpl_core.require_auth();
-        
+
         // Get current borrowed amount
         let current_borrowed: u128 = env.storage().instance().get(&symbol_short!("borrowed")).unwrap_or(0);
-        
+
         // Update borrowed amount
         env.storage().instance().set(&symbol_short!("borrowed"), &(current_borrowed + (amount as u128)));
-        
+
         // Transfer underlying tokens to recipient
         let underlying_asset: Address = env.storage().instance().get(&symbol_short!("asset")).unwrap();
         let underlying_client = TokenClient::new(&env, &underlying_asset);
         underlying_client.transfer(&env.current_contract_address(), &to, &amount);
+
+        // Emit borrow event
+        env.events().publish(
+            (symbol_short!("borrow"), to.clone()),
+            BorrowEvent {
+                borrower: to,
+                amount,
+            }
+        );
     }
     
     /// Repay borrowed amount (BNPL Core only)
@@ -238,24 +306,33 @@ impl LpToken {
         // Only BNPL Core can call this
         let bnpl_core: Address = env.storage().instance().get(&symbol_short!("bnpl_core")).unwrap();
         bnpl_core.require_auth();
-        
+
         // Get current borrowed amount
         let current_borrowed: u128 = env.storage().instance().get(&symbol_short!("borrowed")).unwrap_or(0);
-        
+
         // Cannot repay more than borrowed
         let repay_amount = if (amount as u128) > current_borrowed {
             current_borrowed
         } else {
             amount as u128
         };
-        
+
         // Update borrowed amount
         env.storage().instance().set(&symbol_short!("borrowed"), &(current_borrowed - repay_amount));
-        
+
         // Transfer underlying tokens from repayer to this contract
         let underlying_asset: Address = env.storage().instance().get(&symbol_short!("asset")).unwrap();
         let underlying_client = TokenClient::new(&env, &underlying_asset);
         underlying_client.transfer_from(&env.current_contract_address(), &from, &env.current_contract_address(), &(repay_amount as i128));
+
+        // Emit repay event
+        env.events().publish(
+            (symbol_short!("repay"), from.clone()),
+            RepayEvent {
+                repayer: from,
+                amount: repay_amount as i128,
+            }
+        );
     }
     
     /// Get total amount borrowed (by BNPL Core)
@@ -307,13 +384,23 @@ impl LpToken {
         if fee > 0 {
             let underlying_asset: Address = env.storage().instance().get(&symbol_short!("asset")).unwrap();
             let underlying_client = TokenClient::new(&env, &underlying_asset);
-            
+
             // The underlying tokens equivalent to the fee are now available in the contract
             // Transfer them to BNPL Core
             underlying_client.transfer(&env.current_contract_address(), &bnpl_core, &fee);
         }
+
+        // Emit liquidation burn event
+        env.events().publish(
+            (symbol_short!("liq_burn"), from.clone()),
+            LiquidationBurnEvent {
+                user: from,
+                amount_burned: total_to_burn,
+                fee,
+            }
+        );
     }
-    
+
     /// Calculate utilization ratio (borrowed / total_supply)
     /// Returns basis points (10000 = 100%)
     pub fn utilization_ratio(env: Env) -> u32 {

@@ -6,19 +6,15 @@ import { Badge } from '@/components/ui/badge';
 import { Activity, ExternalLink, RefreshCw } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-
-interface ContractEvent {
-  id: string;
-  contractId: string;
-  contractName: string;
-  type: string | null;
-  topics: string | null;
-  data: string | null;
-  ledgerSequence: string;
-  ledgerClosedAt: string;
-  transactionHash: string;
-  transactionSuccessful: boolean;
-}
+import { CONTRACT_IDS } from '../../../../../../packages/contract-ids';
+import {
+  ContractEvent,
+  CONTRACT_COLORS,
+  parseTopics,
+  parseData,
+  shortenAddress,
+  getActionLabel,
+} from '@/lib/event-parser';
 
 interface EventsResponse {
   events: ContractEvent[];
@@ -37,55 +33,21 @@ interface StatsResponse {
   };
 }
 
-const CONTRACT_COLORS: Record<string, string> = {
-  BNPL_CORE: 'bg-purple-100 text-purple-800',
-  LP_TOKEN: 'bg-blue-100 text-blue-800',
-  USDC_TOKEN: 'bg-green-100 text-green-800',
-  UNKNOWN: 'bg-gray-100 text-gray-800',
-};
-
-function parseTopics(topics: string | null): { action: string; from?: string; to?: string } {
-  if (!topics) return { action: 'unknown' };
-
-  try {
-    const parsed = JSON.parse(topics);
-    const action = parsed[0]?.symbol || 'unknown';
-    const from = parsed[1]?.address;
-    const to = parsed[2]?.address;
-    return { action, from, to };
-  } catch {
-    return { action: 'unknown' };
-  }
-}
-
-function parseData(data: string | null): string {
-  if (!data) return '-';
-
-  try {
-    const parsed = JSON.parse(data);
-    if (parsed.i128) {
-      const amount = BigInt(parsed.i128) / BigInt(10 ** 7);
-      return `${amount.toString()} USDC`;
-    }
-    return JSON.stringify(parsed);
-  } catch {
-    return data;
-  }
-}
-
-function shortenAddress(address: string): string {
-  if (!address || address.length < 10) return address;
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
 export default function AdminActivityPage() {
   const [selectedContract, setSelectedContract] = useState<string | null>(null);
 
   const { data: stats, isLoading: statsLoading } = useQuery<StatsResponse>({
     queryKey: ['indexer-stats'],
     queryFn: async () => {
-      const res = await fetch('/api/indexer/stats');
-      return res.json();
+      const emptyResponse = { success: false, data: { totalEvents: 0, eventsByContract: {}, latestLedger: null, latestTimestamp: null } };
+      try {
+        const res = await fetch('/api/indexer/stats');
+        if (!res.ok) return emptyResponse;
+        const data = await res.json();
+        return data || emptyResponse;
+      } catch {
+        return emptyResponse;
+      }
     },
     refetchInterval: 10000,
   });
@@ -93,12 +55,19 @@ export default function AdminActivityPage() {
   const { data: eventsData, isLoading: eventsLoading, refetch } = useQuery<EventsResponse>({
     queryKey: ['indexer-events', selectedContract],
     queryFn: async () => {
-      const params = new URLSearchParams({ limit: '50' });
-      if (selectedContract) {
-        params.set('contractId', selectedContract);
+      const emptyResponse = { events: [], total: 0, limit: 50, offset: 0 };
+      try {
+        const params = new URLSearchParams({ limit: '50' });
+        if (selectedContract) {
+          params.set('contractId', selectedContract);
+        }
+        const res = await fetch(`/api/indexer/events?${params}`);
+        if (!res.ok) return emptyResponse;
+        const data = await res.json();
+        return data?.events ? data : emptyResponse;
+      } catch {
+        return emptyResponse;
       }
-      const res = await fetch(`/api/indexer/events?${params}`);
-      return res.json();
     },
     refetchInterval: 10000,
   });
@@ -189,23 +158,23 @@ export default function AdminActivityPage() {
           All
         </Button>
         <Button
-          variant={selectedContract === 'CARXH5FIHDJSKPNJOZXLGXKCWHZWYWNAMFGUPTQ4IMYIQ7YXNT3LRXOF' ? 'default' : 'outline'}
+          variant={selectedContract === CONTRACT_IDS.BNPL_CORE ? 'default' : 'outline'}
           size="sm"
-          onClick={() => setSelectedContract('CARXH5FIHDJSKPNJOZXLGXKCWHZWYWNAMFGUPTQ4IMYIQ7YXNT3LRXOF')}
+          onClick={() => setSelectedContract(CONTRACT_IDS.BNPL_CORE)}
         >
           BNPL Core
         </Button>
         <Button
-          variant={selectedContract === 'CDY247U3DLKHU3TPRGM2G2MDQLSHZLZ2WHSUDBGHMKR534BGX334F2B2' ? 'default' : 'outline'}
+          variant={selectedContract === CONTRACT_IDS.LP_TOKEN ? 'default' : 'outline'}
           size="sm"
-          onClick={() => setSelectedContract('CDY247U3DLKHU3TPRGM2G2MDQLSHZLZ2WHSUDBGHMKR534BGX334F2B2')}
+          onClick={() => setSelectedContract(CONTRACT_IDS.LP_TOKEN)}
         >
           LP Token
         </Button>
         <Button
-          variant={selectedContract === 'CDAIS5ZE6MA4TKFXFEXUQ2HA6Z2S4DI2PHOLIBXEMNVQ3CIQNMJWJBAY' ? 'default' : 'outline'}
+          variant={selectedContract === CONTRACT_IDS.USDC_TOKEN ? 'default' : 'outline'}
           size="sm"
-          onClick={() => setSelectedContract('CDAIS5ZE6MA4TKFXFEXUQ2HA6Z2S4DI2PHOLIBXEMNVQ3CIQNMJWJBAY')}
+          onClick={() => setSelectedContract(CONTRACT_IDS.USDC_TOKEN)}
         >
           USDC Token
         </Button>
@@ -228,7 +197,7 @@ export default function AdminActivityPage() {
             <div className="space-y-3">
               {events.map((event) => {
                 const { action, from, to } = parseTopics(event.topics);
-                const amount = parseData(event.data);
+                const data = parseData(event.data);
 
                 return (
                   <div
@@ -241,7 +210,7 @@ export default function AdminActivityPage() {
                           {event.contractName}
                         </Badge>
                         <Badge variant="outline" className="capitalize">
-                          {action}
+                          {getActionLabel(action)}
                         </Badge>
                         {event.transactionSuccessful ? (
                           <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
@@ -274,8 +243,11 @@ export default function AdminActivityPage() {
                         </div>
                       )}
                       <div>
-                        <span className="text-gray-500">Amount: </span>
-                        <span className="font-medium">{amount}</span>
+                        <span className="text-gray-500">Data: </span>
+                        {data.amount && <span className="font-medium">{data.amount}</span>}
+                        {data.shares && <span className="font-medium ml-2">{data.shares}</span>}
+                        {data.expiration && <span className="text-gray-500 ml-2">(exp: {data.expiration})</span>}
+                        {data.raw && !data.amount && <span className="text-gray-500">{data.raw}</span>}
                       </div>
                     </div>
 

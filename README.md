@@ -78,6 +78,49 @@ pnpm run dev                    # Start dev server
 pnpm run build                  # Build for production
 ```
 
+## 📦 Contract Deployment
+
+### Deploy to Testnet
+
+```bash
+# 1. Switch to testnet environment
+pnpm run env:testnet
+
+# 2. Build all contracts
+pnpm run contracts:build
+
+# 3. Deploy and initialize contracts
+pnpm run contracts:deploy
+
+# 4. Generate TypeScript bindings
+pnpm run bindings:generate
+```
+
+After deployment, update `packages/contract-ids.ts` with the new contract addresses.
+
+### Event Indexer (Goldsky Mirror)
+
+The protocol uses [Goldsky Mirror](https://docs.goldsky.com/chains/stellar) to index contract events into PostgreSQL.
+
+```bash
+# 1. Login to Goldsky
+goldsky login
+
+# 2. Create database secret (one-time setup)
+goldsky secret create --name LUMEN_LATER_DB --value '{"type":"jdbc","url":"jdbc:postgresql://host:5432/db","username":"user","password":"pass"}'
+
+# 3. Apply/update the pipeline
+goldsky pipeline apply ./indexer/pipeline.yaml
+
+# 4. Monitor pipeline status
+goldsky pipeline monitor lumen-later-events
+```
+
+When contract addresses change after redeployment:
+1. Update `packages/contract-ids.ts` with new addresses
+2. Update `indexer/pipeline.yaml` with new contract IDs
+3. Run `goldsky pipeline apply ./indexer/pipeline.yaml`
+
 ## 🔗 Networks
 
 | Network | Purpose | Status |
@@ -87,9 +130,9 @@ pnpm run build                  # Build for production
 | **Mainnet** | Production | TBD |
 
 ### Testnet Contract Addresses
-- BNPL Core: `CARXH5FIHDJSKPNJOZXLGXKCWHZWYWNAMFGUPTQ4IMYIQ7YXNT3LRXOF`
-- USDC Token: `CDAIS5ZE6MA4TKFXFEXUQ2HA6Z2S4DI2PHOLIBXEMNVQ3CIQNMJWJBAY`
-- LP Token: `CDY247U3DLKHU3TPRGM2G2MDQLSHZLZ2WHSUDBGHMKR534BGX334F2B2`
+- BNPL Core: `CA3T77DH6B7CVAR24XP4BX6GLQOMVHOWRXH6D6EXYAPOYNMCCRZSG5YO`
+- USDC Token: `CC64364OA6BFTMDJYN2IPZV2RQDC2O742DJYKWN6TA3CUA44DFJE3K43`
+- LP Token: `CBHXULLUD7EDNSVM23HFO6ZK3UETZSPGGSVZ4W3ANH2SRLEDBT5GNVUB`
 
 ## 🚀 Roadmap
 
