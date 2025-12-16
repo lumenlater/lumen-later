@@ -2,7 +2,7 @@
 
 import { useWallet } from '@/hooks/web3/use-wallet';
 import { Button } from '@/components/ui/button';
-import { Wallet, AlertCircle, Shield, Store, Droplets, User, LayoutDashboard } from 'lucide-react';
+import { Wallet, AlertCircle, Shield, Store, Droplets, User, LayoutDashboard, Activity } from 'lucide-react';
 import Link from 'next/link';
 import { isAdminWallet } from '@/config/admin';
 import { useBnplMerchant } from '@/hooks/web3/use-bnpl-merchant';
@@ -38,6 +38,13 @@ export function Header() {
           >
             <Droplets className="w-4 h-4" />
             <span>Faucet</span>
+          </Link>
+          <Link
+            href="/activity"
+            className="flex items-center space-x-1 text-sm text-primary-600 hover:text-primary-700"
+          >
+            <Activity className="w-4 h-4" />
+            <span>Activity</span>
           </Link>
           {isConnected && publicKey ? (
             <>

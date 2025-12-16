@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     // Convert BigInt to string for JSON serialization
     const serializedEvents = result.events.map(e => ({
       ...e,
-      ledger: e.ledger.toString(),
+      ledgerSequence: e.ledgerSequence.toString(),
     }));
 
     return NextResponse.json({

@@ -1,7 +1,7 @@
 // Prisma schema for PostgreSQL - Event Indexer (Goldsky)
 //
-// This is a separate schema for event data streamed by Goldsky Mirror.
-// App data (merchants, bills, etc.) remains in MongoDB (schema.prisma)
+// This schema matches Goldsky's stellar_testnet.events dataset structure
+// Events are streamed by Goldsky Mirror pipeline
 //
 // Generate client: npx prisma generate --schema=prisma/schema.postgres.prisma
 // Push schema: npx prisma db push --schema=prisma/schema.postgres.prisma
@@ -17,7 +17,6 @@ datasource db {
 }
 
 /// Contract events indexed by Goldsky Mirror from stellar_testnet.events
-/// Table is auto-created by Goldsky pipeline, schema here for type safety
 model ContractEvent {
   id                       String  @id
   type                     String? // Event type (contract, diagnostic, etc.)
@@ -38,10 +37,10 @@ model ContractEvent {
   operationType       String? @map("operation_type")
 
   // Ledger info
-  ledgerSequence BigInt  @map("ledger_sequence")
-  ledgerHash     String? @map("ledger_hash")
-  ledgerClosedAt BigInt  @map("ledger_closed_at") // Unix timestamp in ms
-  ledgerSignature String? @map("ledger_signature")
+  ledgerSequence  BigInt   @map("ledger_sequence")
+  ledgerHash      String?  @map("ledger_hash")
+  ledgerClosedAt  DateTime @map("ledger_closed_at")
+  ledgerSignature String?  @map("ledger_signature")
 
   @@index([contractId])
   @@index([ledgerSequence])

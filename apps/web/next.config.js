@@ -37,12 +37,14 @@ const nextConfig = {
       ];
     }
     
-    config.plugins.push(
-      new webpack.ProvidePlugin({
-        Buffer: ['buffer', 'Buffer'],
-        process: 'process/browser',
-      })
-    );
+    if (!isServer) {
+      config.plugins.push(
+        new webpack.ProvidePlugin({
+          Buffer: ['buffer', 'Buffer'],
+          process: 'process/browser',
+        })
+      );
+    }
     
     // Replace sodium-native with a browser-safe alternative
     config.resolve.alias = {

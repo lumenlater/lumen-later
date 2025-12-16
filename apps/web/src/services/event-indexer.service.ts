@@ -30,7 +30,7 @@ export interface EventWithName {
   topics: string | null;
   data: string | null;
   ledgerSequence: bigint;
-  ledgerClosedAt: bigint;
+  ledgerClosedAt: Date;
   transactionHash: string;
   transactionSuccessful: boolean;
 }
@@ -89,9 +89,7 @@ export class EventIndexerService {
         data: {
           totalEvents: count,
           latestLedger: latest?.ledgerSequence?.toString() || null,
-          latestTimestamp: latest?.ledgerClosedAt
-            ? new Date(Number(latest.ledgerClosedAt)).toISOString()
-            : null,
+          latestTimestamp: latest?.ledgerClosedAt?.toISOString() || null,
         },
       };
     } catch (error) {
@@ -229,9 +227,7 @@ export class EventIndexerService {
       totalEvents: total,
       eventsByContract,
       latestLedger: latest?.ledgerSequence || null,
-      latestTimestamp: latest?.ledgerClosedAt
-        ? new Date(Number(latest.ledgerClosedAt))
-        : null,
+      latestTimestamp: latest?.ledgerClosedAt || null,
     };
   }
 
