@@ -30,14 +30,14 @@ export interface EventWithName {
   data: unknown;
   ledger: bigint;
   txHash: string;
-  timestamp: Date;
+  eventTimestamp: Date;
 }
 
 export interface EventStats {
   totalEvents: number;
   eventsByContract: Record<string, number>;
   latestLedger: bigint | null;
-  latestTimestamp: Date | null;
+  latestEventTimestamp: Date | null;
 }
 
 export interface EventQueryOptions {
@@ -78,7 +78,7 @@ export class EventIndexerService {
       const count = await this.prisma.contractEvent.count();
       const latest = await this.prisma.contractEvent.findFirst({
         orderBy: { ledger: 'desc' },
-        select: { ledger: true, timestamp: true },
+        select: { ledger: true, eventTimestamp: true },
       });
 
       return {
@@ -87,7 +87,7 @@ export class EventIndexerService {
         data: {
           totalEvents: count,
           latestLedger: latest?.ledger?.toString() || null,
-          latestTimestamp: latest?.timestamp || null,
+          latestEventTimestamp: latest?.eventTimestamp || null,
         },
       };
     } catch (error) {
@@ -121,15 +121,15 @@ export class EventIndexerService {
     if (contractId) where.contractId = contractId;
     if (txHash) where.txHash = txHash;
     if (startDate || endDate) {
-      where.timestamp = {};
-      if (startDate) where.timestamp.gte = startDate;
-      if (endDate) where.timestamp.lte = endDate;
+      where.eventTimestamp = {};
+      if (startDate) where.eventTimestamp.gte = startDate;
+      if (endDate) where.eventTimestamp.lte = endDate;
     }
 
     const [events, total] = await Promise.all([
       this.prisma.contractEvent.findMany({
         where,
-        orderBy: { timestamp: 'desc' },
+        orderBy: { eventTimestamp: 'desc' },
         take: limit,
         skip: offset,
       }),
@@ -144,7 +144,7 @@ export class EventIndexerService {
       data: e.data,
       ledger: e.ledger,
       txHash: e.txHash,
-      timestamp: e.timestamp,
+      eventTimestamp: e.eventTimestamp,
     }));
 
     return { events: eventsWithName, total, limit, offset };
@@ -168,7 +168,7 @@ export class EventIndexerService {
       data: event.data,
       ledger: event.ledger,
       txHash: event.txHash,
-      timestamp: event.timestamp,
+      eventTimestamp: event.eventTimestamp,
     };
   }
 
@@ -178,7 +178,7 @@ export class EventIndexerService {
   async getEventsByTxHash(txHash: string): Promise<EventWithName[]> {
     const events = await this.prisma.contractEvent.findMany({
       where: { txHash },
-      orderBy: { timestamp: 'asc' },
+      orderBy: { eventTimestamp: 'asc' },
     });
 
     return events.map(e => ({
@@ -189,7 +189,7 @@ export class EventIndexerService {
       data: e.data,
       ledger: e.ledger,
       txHash: e.txHash,
-      timestamp: e.timestamp,
+      eventTimestamp: e.eventTimestamp,
     }));
   }
 
@@ -205,7 +205,7 @@ export class EventIndexerService {
       }),
       this.prisma.contractEvent.findFirst({
         orderBy: { ledger: 'desc' },
-        select: { ledger: true, timestamp: true },
+        select: { ledger: true, eventTimestamp: true },
       }),
     ]);
 
@@ -219,7 +219,7 @@ export class EventIndexerService {
       totalEvents: total,
       eventsByContract,
       latestLedger: latest?.ledger || null,
-      latestTimestamp: latest?.timestamp || null,
+      latestEventTimestamp: latest?.eventTimestamp || null,
     };
   }
 
@@ -228,7 +228,7 @@ export class EventIndexerService {
    */
   async getRecentEvents(limit: number = 10): Promise<EventWithName[]> {
     const events = await this.prisma.contractEvent.findMany({
-      orderBy: { timestamp: 'desc' },
+      orderBy: { eventTimestamp: 'desc' },
       take: limit,
     });
 
@@ -240,7 +240,7 @@ export class EventIndexerService {
       data: e.data,
       ledger: e.ledger,
       txHash: e.txHash,
-      timestamp: e.timestamp,
+      eventTimestamp: e.eventTimestamp,
     }));
   }
 

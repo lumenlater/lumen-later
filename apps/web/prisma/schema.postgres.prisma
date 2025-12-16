@@ -24,15 +24,15 @@ model ContractEvent {
   topic      Json?    // Event topics array
   data       Json?    // Event data payload
   ledger     BigInt   // Ledger sequence number
-  txHash     String   @map("tx_hash")
-  timestamp  DateTime
+  txHash         String   @map("tx_hash")
+  eventTimestamp DateTime @map("event_timestamp")
 
   // Goldsky metadata (auto-populated)
   goldskyIngestedAt DateTime? @default(now()) @map("_goldsky_ingested_at")
 
   @@index([contractId])
   @@index([ledger])
-  @@index([timestamp])
+  @@index([eventTimestamp])
   @@index([txHash])
   @@map("contract_events")
 }

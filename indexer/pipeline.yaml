@@ -3,7 +3,7 @@
 #
 # Setup:
 #   1. goldsky login
-#   2. goldsky secret create LUMEN_LATER_DB --value "postgresql://..."
+#   2. goldsky secret create LUMEN_LATER_DB --value '{"type":"jdbc","protocol":"postgresql",...}'
 #   3. goldsky pipeline apply ./indexer/pipeline.yaml
 #   4. goldsky pipeline start lumen-later-events
 #
@@ -14,31 +14,44 @@ name: lumen-later-events
 resource_size: s
 
 sources:
-  # Stellar testnet events dataset
-  stellar_events:
+  # Stellar ledgers dataset (contains nested transactions and events)
+  stellar_ledgers:
     type: dataset
-    dataset_name: stellar_testnet.events
-    version: 1.0.0
-    start_at: latest  # Use 'latest' for testnet (resets every ~3 months)
+    dataset_name: stellar.ledgers
+    version: 3.1.0
+    start_at: latest
 
 transforms:
-  # Filter only our contract events
-  filter_bnpl_contracts:
+  # Flatten transactions from ledgers
+  flatten_transactions:
     sql: |
       SELECT
-        id,
-        contract_id,
-        topic,
-        data,
-        ledger_sequence as ledger,
-        transaction_hash as tx_hash,
-        closed_at as timestamp
-      FROM stellar_events
-      WHERE contract_id IN (
+        l.sequence as ledger_sequence,
+        l.closed_at,
+        t.*
+      FROM stellar_ledgers l
+      CROSS JOIN UNNEST(l.transactions) as t
+    primary_key: transaction_hash
+
+  # Flatten events from transactions and filter our contracts
+  filter_bnpl_events:
+    sql: |
+      SELECT
+        e.id,
+        e.contract_id,
+        e.topics as topic,
+        e.data,
+        ft.ledger_sequence as ledger,
+        ft.transaction_hash as tx_hash,
+        ft.closed_at as event_timestamp
+      FROM flatten_transactions ft
+      CROSS JOIN UNNEST(ft.events) as e
+      WHERE e.contract_id IN (
         'CC7KPNSQWP2FKOAXMDI7LN7FREPJNQM44QO4VAL5WDDCAV4OC2YDGOWY',
         'CDDIYSWIAPZALYJUT47YY33NTBYY6KXYXBMU6AY4KQ6FZJ7N3JCKPBEB',
         'CBNOIIPYSYNBH477KUBOX5VRWUIW2PLDF4TE52GGYWRKSQM4BMD5GHK2'
       )
+      AND e.type = 'contract'
     primary_key: id
 
 sinks:
@@ -48,4 +61,4 @@ sinks:
     table: contract_events
     schema: public
     secret_name: LUMEN_LATER_DB
-    from: filter_bnpl_contracts
+    from: filter_bnpl_events
