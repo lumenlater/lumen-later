@@ -1,9 +1,8 @@
 // Admin configuration
 
-// Default admin wallets for development
+// Default admin wallets - must match contract admin
 const DEFAULT_ADMIN_WALLETS = [
-  'GDQP2KPQGKIHYJGXNUIYOMHARUARCA7DJT5FO2FFOOKY3B2WSQHG4W37',
-  'GD2R2EPCZG2J6DRBO2RPWWQLJZ3ZYLVYACR3YTJI525XPTPUFB53PLYX',
+  'GCGUBPHLAWNFKXOJHGQAO2SMGPDV44JUS2EPJMJKJLMY3JMACR22L6P7', // bnpl-deployer (contract admin)
 ];
 
 // Use environment variable if available, otherwise use defaults

@@ -41,7 +41,7 @@ export function useBnplAdmin() {
     try {
       const tx = await client.get_protocol_constants();
       const constantsMap = tx.result;
-      
+
       // Convert Map to object with proper field names
       return {
         max_borrowing_ratio: Number(constantsMap.get('max_borrowing_ratio') || 0n),
@@ -57,18 +57,50 @@ export function useBnplAdmin() {
     }
   };
 
+  /**
+   * Update merchant status on blockchain
+   * @param merchantAddress - Merchant's Stellar address
+   * @param newStatus - 'Approved' | 'Rejected' | 'Suspended'
+   */
+  const updateMerchantStatus = async (merchantAddress: string, newStatus: string): Promise<void> => {
+    if (!client || !publicKey) {
+      throw new Error('Wallet not connected');
+    }
+
+    // Map status string to contract enum
+    const statusMap: Record<string, any> = {
+      Approved: { tag: 'Approved', values: undefined },
+      Rejected: { tag: 'Rejected', values: undefined },
+      Suspended: { tag: 'Suspended', values: undefined },
+      Pending: { tag: 'Pending', values: undefined },
+    };
+
+    const status = statusMap[newStatus];
+    if (!status) {
+      throw new Error(`Invalid status: ${newStatus}`);
+    }
+
+    const tx = await client.update_merchant_status({
+      admin: publicKey,
+      merchant: merchantAddress,
+      new_status: status,
+    });
+
+    await signAndSendTx(tx);
+  };
+
   return {
     // State
     systemStats: systemStats || null,
-    
+
     // Queries
     getSystemStats: refetchSystemStats,
     isAdmin,
     getProtocolConstants,
-    
+
     // Mutations
-    
-    
+    updateMerchantStatus,
+
     // Loading states
     isLoading: false,
     error: null,

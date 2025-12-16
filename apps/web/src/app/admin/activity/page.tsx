@@ -247,7 +247,23 @@ export default function AdminActivityPage() {
                         {data.amount && <span className="font-medium">{data.amount}</span>}
                         {data.shares && <span className="font-medium ml-2">{data.shares}</span>}
                         {data.expiration && <span className="text-gray-500 ml-2">(exp: {data.expiration})</span>}
-                        {data.raw && !data.amount && <span className="text-gray-500">{data.raw}</span>}
+                        {data.merchant && (
+                          <span className="font-medium">
+                            Merchant: <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">{shortenAddress(data.merchant)}</code>
+                          </span>
+                        )}
+                        {data.merchantInfoId && (
+                          <span className="text-gray-500 ml-2">ID: {data.merchantInfoId.slice(0, 8)}...</span>
+                        )}
+                        {data.newStatus && (
+                          <span className="font-medium">
+                            {data.oldStatus && <span className="text-gray-500">{data.oldStatus} → </span>}
+                            <Badge variant={data.newStatus === 'Approved' ? 'default' : 'destructive'} className="ml-1">
+                              {data.newStatus}
+                            </Badge>
+                          </span>
+                        )}
+                        {data.raw && !data.amount && !data.merchant && !data.newStatus && <span className="text-gray-500">{data.raw}</span>}
                       </div>
                     </div>
 

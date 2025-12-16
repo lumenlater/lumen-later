@@ -48,7 +48,25 @@ export interface ParsedData {
   amount?: string;
   shares?: string;
   expiration?: number;
+  merchant?: string;
+  merchantInfoId?: string;
+  timestamp?: string;
+  newStatus?: string;
+  oldStatus?: string;
   raw?: string;
+}
+
+// Merchant status from indexed events
+export type MerchantOnChainStatus = 'Pending' | 'Approved' | 'Rejected' | 'Suspended' | 'None';
+
+// Merchant data from indexed events
+export interface IndexedMerchant {
+  address: string;
+  merchantInfoId?: string;
+  status: MerchantOnChainStatus;
+  enrolledAt: string;
+  approvedAt?: string;
+  ledgerSequence: string;
 }
 
 /**
@@ -97,26 +115,51 @@ export function parseData(data: string | null): ParsedData {
       return { amount: `${amount.toString()} USDC` };
     }
 
-    // Handle LP_TOKEN event format with map (deposit, withdraw, borrow, repay)
+    // Handle map format events (LP_TOKEN, BNPL_CORE merchant events)
     if (parsed.map && Array.isArray(parsed.map)) {
       const result: ParsedData = {};
       for (const item of parsed.map) {
         const key = item.key?.symbol;
-        const val = item.val?.i128;
-        if (key === 'amount' && val) {
-          const amount = BigInt(val) / BigInt(10 ** 7);
+        const val = item.val;
+
+        // LP_TOKEN: amount (i128)
+        if (key === 'amount' && val?.i128) {
+          const amount = BigInt(val.i128) / BigInt(10 ** 7);
           result.amount = `${amount.toString()} USDC`;
         }
-        if ((key === 'shares_minted' || key === 'shares_burned') && val) {
-          const shares = BigInt(val) / BigInt(10 ** 7);
+        // LP_TOKEN: shares_minted/shares_burned (i128)
+        if ((key === 'shares_minted' || key === 'shares_burned') && val?.i128) {
+          const shares = BigInt(val.i128) / BigInt(10 ** 7);
           result.shares = `${shares.toString()} LP`;
         }
-        if (key === 'fee' && val) {
-          const fee = BigInt(val) / BigInt(10 ** 7);
+        // LP_TOKEN: fee (i128)
+        if (key === 'fee' && val?.i128) {
+          const fee = BigInt(val.i128) / BigInt(10 ** 7);
           result.raw = `Fee: ${fee.toString()} USDC`;
         }
+        // BNPL_CORE m_enroll: merchant address
+        if (key === 'merchant' && val?.address) {
+          result.merchant = val.address;
+        }
+        // BNPL_CORE m_enroll: merchant_info_id (string)
+        if (key === 'merchant_info_id' && val?.string) {
+          result.merchantInfoId = val.string;
+        }
+        // BNPL_CORE m_enroll/m_status: timestamp (u64)
+        if (key === 'timestamp' && val?.u64) {
+          const ts = parseInt(val.u64, 10);
+          result.timestamp = new Date(ts * 1000).toLocaleString();
+        }
+        // BNPL_CORE m_status: new_status (vec with symbol)
+        if (key === 'new_status' && val?.vec && Array.isArray(val.vec)) {
+          result.newStatus = val.vec[0]?.symbol || 'Unknown';
+        }
+        // BNPL_CORE m_status: old_status (vec with symbol)
+        if (key === 'old_status' && val?.vec && Array.isArray(val.vec)) {
+          result.oldStatus = val.vec[0]?.symbol || 'Unknown';
+        }
       }
-      if (result.amount || result.shares) return result;
+      if (result.amount || result.shares || result.merchant || result.newStatus) return result;
     }
 
     // Handle approve format: {"vec":[{"i128":"amount"},{"u32":expiration}]}
@@ -220,4 +263,71 @@ export function isOutgoingEvent(event: ContractEvent, userAddress?: string): boo
   }
 
   return false;
+}
+
+/**
+ * Parse raw event data to extract merchant address (for m_status events)
+ */
+export function parseMerchantFromData(data: string | null): string | undefined {
+  if (!data) return undefined;
+  try {
+    const parsed = JSON.parse(data);
+    if (parsed.map && Array.isArray(parsed.map)) {
+      for (const item of parsed.map) {
+        if (item.key?.symbol === 'merchant' && item.val?.address) {
+          return item.val.address;
+        }
+      }
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Build merchant list from indexed events
+ * - m_enroll events create merchants with Pending status
+ * - m_status events update the status
+ */
+export function buildMerchantListFromEvents(events: ContractEvent[]): IndexedMerchant[] {
+  const merchantMap = new Map<string, IndexedMerchant>();
+
+  // Sort events by ledger sequence (oldest first)
+  const sortedEvents = [...events].sort((a, b) =>
+    parseInt(a.ledgerSequence) - parseInt(b.ledgerSequence)
+  );
+
+  for (const event of sortedEvents) {
+    if (event.contractName !== 'BNPL_CORE') continue;
+
+    const { action } = parseTopics(event.topics);
+    const data = parseData(event.data);
+
+    if (action === 'm_enroll' && data.merchant) {
+      // New merchant enrolled
+      merchantMap.set(data.merchant, {
+        address: data.merchant,
+        merchantInfoId: data.merchantInfoId,
+        status: 'Pending',
+        enrolledAt: event.ledgerClosedAt,
+        ledgerSequence: event.ledgerSequence,
+      });
+    } else if (action === 'm_status' && data.newStatus) {
+      // Status update - get merchant address from data
+      const merchantAddress = parseMerchantFromData(event.data);
+      if (merchantAddress && merchantMap.has(merchantAddress)) {
+        const merchant = merchantMap.get(merchantAddress)!;
+        merchant.status = data.newStatus as MerchantOnChainStatus;
+        if (data.newStatus === 'Approved') {
+          merchant.approvedAt = event.ledgerClosedAt;
+        }
+      }
+    }
+  }
+
+  // Return as array, sorted by enrollment date (newest first)
+  return Array.from(merchantMap.values()).sort((a, b) =>
+    new Date(b.enrolledAt).getTime() - new Date(a.enrolledAt).getTime()
+  );
 }
