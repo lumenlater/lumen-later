@@ -67,18 +67,19 @@ export function useBnplBill() {
   });
 
   // Repay bill mutation
+  // NOTE: Caller must ensure USDC approval is done before calling this
   const repayBillMutation = useMutation({
-    mutationFn: async ({ 
-      billId, 
-    }: { 
-      billId: string; 
+    mutationFn: async ({
+      billId,
+    }: {
+      billId: string;
     }) => {
       if (!client || !publicKey) throw new Error('Not connected');
 
-      const tx = await client.repay_bill({ 
+      const tx = await client.repay_bill({
         bill_id: BigInt(billId),
       });
-        
+
       await signAndSendTx(tx);
       return billId;
     },

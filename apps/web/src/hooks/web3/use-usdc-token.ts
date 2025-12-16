@@ -148,13 +148,20 @@ export function useUsdcToken(): UseUSDCTokenReturn {
       }
 
       const amountInStroops = toStroops(amount);
-      
+
+      // Get current ledger sequence from RPC
+      const rpc = new (await import('@stellar/stellar-sdk')).rpc.Server(Config.STELLAR_RPC_URL);
+      const latestLedger = await rpc.getLatestLedger();
+      // Set expiration to ~1 week from now (ledger closes every ~5 seconds)
+      // 1 week = 7 * 24 * 60 * 12 = 120,960 ledgers
+      const expirationLedger = latestLedger.sequence + 120960;
+
       // Build the transaction
       const tx = await client.approve({
         from: publicKey,
         spender: spender,
         amount: amountInStroops,
-        expiration_ledger: 10000,
+        expiration_ledger: expirationLedger,
       });
 
       // Sign and submit the transaction

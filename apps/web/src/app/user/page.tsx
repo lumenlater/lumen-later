@@ -46,8 +46,10 @@ export default function UserDashboard() {
   
   const [payingBillId, setPayingBillId] = useState<string | null>(null);
   const [repayingBillId, setRepayingBillId] = useState<string | null>(null);
+  const [approvingBillId, setApprovingBillId] = useState<string | null>(null);
   const [billStatuses, setBillStatuses] = useState<Record<string, string>>({});
   const [loadingStatuses, setLoadingStatuses] = useState(false);
+  const [needsApproval, setNeedsApproval] = useState<boolean>(true); // Default to true (needs approval)
 
   // Redirect to home if not connected (must be before any conditional returns)
   useEffect(() => {
@@ -55,6 +57,22 @@ export default function UserDashboard() {
       router.push('/');
     }
   }, [isConnected, router]);
+
+  // Check USDC allowance for BNPL contract
+  useEffect(() => {
+    const checkAllowance = async () => {
+      if (!publicKey) return;
+      try {
+        const allowance = await getAllowance(CONTRACT_IDS.BNPL_CORE);
+        // If allowance > 0, user has already approved
+        setNeedsApproval(allowance <= 0n);
+      } catch (error) {
+        console.error('Error checking allowance:', error);
+        setNeedsApproval(true);
+      }
+    };
+    checkAllowance();
+  }, [publicKey, getAllowance]);
 
   const { data: offChainBills, isLoading: billsLoading } = useBillsByUser(publicKey);
   const { data: onChainBills, isLoading: onChainLoading } = useBillEventsByUser(publicKey);
@@ -234,12 +252,12 @@ export default function UserDashboard() {
   // Handle bill repayment
   const handleRepayBill = async (billId: string) => {
     if (!billId || !publicKey) return;
-    
+
     setRepayingBillId(billId);
     try {
       // First, check the bill status from blockchain
       const billDetails = await getBill(billId);
-      
+
       if (!billDetails) {
         toast({
           title: 'Error',
@@ -265,18 +283,22 @@ export default function UserDashboard() {
 
       // If allowance is insufficient, approve first
       if (allowance < repayAmount) {
+        setApprovingBillId(billId);
         toast({
-          title: 'Approving USDC',
-          description: 'Approving USDC for repayment...',
+          title: 'Step 1/2: Approving USDC',
+          description: 'Please approve USDC spending for repayment...',
         });
-        
-        // Approve a bit more than needed to avoid precision issues
-        const approveAmount = repayAmount + BigInt(100);
+
+        // Approve a bit more than needed (10% buffer for late fees)
+        const approveAmount = (repayAmount * 110n) / 100n;
         await approve(CONTRACT_IDS.BNPL_CORE, (Number(approveAmount) / 10 ** 7).toString());
-        
+
+        setNeedsApproval(false);
+        setApprovingBillId(null);
+
         toast({
           title: 'USDC Approved',
-          description: 'USDC approval successful. Processing repayment...',
+          description: 'Step 2/2: Processing repayment...',
         });
       }
 
@@ -284,9 +306,9 @@ export default function UserDashboard() {
       await repayBill(billId);
       toast({
         title: 'Success',
-        description: 'Loan repayment initiated successfully. Transaction will be confirmed shortly.',
+        description: 'Loan repayment completed successfully!',
       });
-      
+
       router.refresh();
     } catch (error) {
       console.error('Error repaying bill:', error);
@@ -297,6 +319,7 @@ export default function UserDashboard() {
       });
     } finally {
       setRepayingBillId(null);
+      setApprovingBillId(null);
     }
   };
 
@@ -498,9 +521,15 @@ export default function UserDashboard() {
                                         variant="outline" 
                                         size="sm"
                                         onClick={() => handleRepayBill(bill.onChainBillId!.toString())}
-                                        disabled={repayingBillId === bill.onChainBillId!.toString()}
+                                        disabled={repayingBillId === bill.onChainBillId!.toString() || approvingBillId === bill.onChainBillId!.toString()}
                                       >
-                                        {repayingBillId === bill.onChainBillId!.toString() ? 'Repaying...' : 'Repay Loan'}
+                                        {approvingBillId === bill.onChainBillId!.toString()
+                                          ? 'Approving...'
+                                          : repayingBillId === bill.onChainBillId!.toString()
+                                            ? 'Repaying...'
+                                            : needsApproval
+                                              ? 'Approve & Repay'
+                                              : 'Repay Loan'}
                                       </Button>
                                     </div>
                                   );
