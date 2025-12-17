@@ -106,8 +106,8 @@ interface MerchantDetail {
   ledgerSequence: string;
   createdAt: string;
   updatedAt: string;
-  bills: MerchantBill[];
-  billStats: BillStats;
+  bills?: MerchantBill[];
+  billStats?: BillStats;
   application?: MerchantApplication;
 }
 
@@ -495,55 +495,57 @@ export default function MerchantDetailPage({
       </div>
 
       {/* Bill Stats */}
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Bill Statistics</CardTitle>
-          <CardDescription>
-            Overview of bills for this merchant
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-            <div className="text-center p-3 bg-gray-50 rounded-lg">
-              <p className="text-2xl font-bold">{merchant.billStats.total}</p>
-              <p className="text-sm text-gray-500">Total Bills</p>
+      {merchant.billStats && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Bill Statistics</CardTitle>
+            <CardDescription>
+              Overview of bills for this merchant
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <p className="text-2xl font-bold">{merchant.billStats.total}</p>
+                <p className="text-sm text-gray-500">Total Bills</p>
+              </div>
+              <div className="text-center p-3 bg-blue-50 rounded-lg">
+                <p className="text-2xl font-bold">{merchant.billStats.byStatus?.created || 0}</p>
+                <p className="text-sm text-gray-500">Created</p>
+              </div>
+              <div className="text-center p-3 bg-yellow-50 rounded-lg">
+                <p className="text-2xl font-bold">{merchant.billStats.byStatus?.paid || 0}</p>
+                <p className="text-sm text-gray-500">Active (Paid)</p>
+              </div>
+              <div className="text-center p-3 bg-green-50 rounded-lg">
+                <p className="text-2xl font-bold">{merchant.billStats.byStatus?.repaid || 0}</p>
+                <p className="text-sm text-gray-500">Repaid</p>
+              </div>
+              <div className="text-center p-3 bg-red-50 rounded-lg">
+                <p className="text-2xl font-bold">{merchant.billStats.byStatus?.liquidated || 0}</p>
+                <p className="text-sm text-gray-500">Liquidated</p>
+              </div>
             </div>
-            <div className="text-center p-3 bg-blue-50 rounded-lg">
-              <p className="text-2xl font-bold">{merchant.billStats.byStatus.created}</p>
-              <p className="text-sm text-gray-500">Created</p>
+            <div className="text-center p-4 bg-gray-100 rounded-lg">
+              <p className="text-sm text-gray-500">Total Volume</p>
+              <p className="text-2xl font-bold">
+                ${((merchant.billStats.totalVolume || 0) / 1e7).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
             </div>
-            <div className="text-center p-3 bg-yellow-50 rounded-lg">
-              <p className="text-2xl font-bold">{merchant.billStats.byStatus.paid}</p>
-              <p className="text-sm text-gray-500">Active (Paid)</p>
-            </div>
-            <div className="text-center p-3 bg-green-50 rounded-lg">
-              <p className="text-2xl font-bold">{merchant.billStats.byStatus.repaid}</p>
-              <p className="text-sm text-gray-500">Repaid</p>
-            </div>
-            <div className="text-center p-3 bg-red-50 rounded-lg">
-              <p className="text-2xl font-bold">{merchant.billStats.byStatus.liquidated}</p>
-              <p className="text-sm text-gray-500">Liquidated</p>
-            </div>
-          </div>
-          <div className="text-center p-4 bg-gray-100 rounded-lg">
-            <p className="text-sm text-gray-500">Total Volume</p>
-            <p className="text-2xl font-bold">
-              ${(merchant.billStats.totalVolume / 1e7).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent Bills */}
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Recent Bills</CardTitle>
-          <CardDescription>
-            Latest transactions for this merchant
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {merchant.bills.length > 0 ? (
+      {merchant.bills && merchant.bills.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Recent Bills</CardTitle>
+            <CardDescription>
+              Latest transactions for this merchant
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
             <div className="space-y-3">
               {merchant.bills.slice(0, 10).map((bill) => (
                 <div
@@ -582,11 +584,9 @@ export default function MerchantDetailPage({
                 </div>
               ))}
             </div>
-          ) : (
-            <p className="text-gray-500 text-center py-4">No bills recorded</p>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
