@@ -25,7 +25,7 @@ import { generateMerchantApplication } from '@lumenlater/shared';
 import { delay } from '../src/utils/delay.js';
 
 const MERCHANT_COUNT = 10;
-const USER_COUNT = 10;
+const USER_COUNT = 20;
 const INITIAL_TVL = 50000;
 const USDC_PER_USER = 10000;
 
