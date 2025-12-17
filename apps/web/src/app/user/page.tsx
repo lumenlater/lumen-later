@@ -7,6 +7,7 @@ import { useUserInfo } from '@/hooks/web3/use-user-info';
 import { useBnplBill } from '@/hooks/web3/use-bnpl-bill';
 import { useBillEvents } from '@/hooks/web3/use-bill-events';
 import { useUsdcToken } from '@/hooks/web3/use-usdc-token';
+import { useUserBills, useBill, IndexedBill } from '@/hooks/api/use-indexed-bills';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,15 +42,16 @@ export default function UserDashboard() {
   const { toast } = useToast();
   const { useBillsByUser } = useBillAPI();
   const { useBorrowingPower, useUserDebt } = useUserInfo();
-  const { payBill, repayBill, getBill } = useBnplBill();
+  const { payBill, repayBill } = useBnplBill();
   const { useBillEventsByUser } = useBillEvents();
   const { getAllowance, approve } = useUsdcToken();
+
+  // Use indexer for bill data (fast, no RPC cost)
+  const { data: indexedBills, isLoading: indexedBillsLoading, refetch: refetchIndexedBills } = useUserBills(publicKey);
   
   const [payingBillId, setPayingBillId] = useState<string | null>(null);
   const [repayingBillId, setRepayingBillId] = useState<string | null>(null);
   const [approvingBillId, setApprovingBillId] = useState<string | null>(null);
-  const [billStatuses, setBillStatuses] = useState<Record<string, string>>({});
-  const [loadingStatuses, setLoadingStatuses] = useState(false);
   const [needsApproval, setNeedsApproval] = useState<boolean>(true); // Default to true (needs approval)
 
   // Redirect to home if not connected (must be before any conditional returns)
@@ -126,34 +128,28 @@ export default function UserDashboard() {
     return enhancedBills;
   }, [offChainBills, onChainBills]);
 
-  // Fetch bill statuses from blockchain
-  useEffect(() => {
-    if (!bills || bills.length === 0 || !getBill) return;
-
-    const fetchBillStatuses = async () => {
-      setLoadingStatuses(true);
-      const statuses: Record<string, string> = {};
-
-      for (const bill of bills) {
-        if (bill.onChainBillId) {
-          try {
-            const billDetails = await getBill(bill.onChainBillId.toString());
-            if (billDetails) {
-              statuses[bill.onChainBillId] = billDetails.status.tag;
-            }
-          } catch (error) {
-            console.error(`Error fetching status for bill ${bill.onChainBillId}:`, error);
-          }
-        }
+  // Build billStatuses map from indexed bills (no RPC needed!)
+  const billStatuses = useMemo(() => {
+    const statuses: Record<string, string> = {};
+    if (indexedBills) {
+      for (const bill of indexedBills) {
+        // Map indexer status (CREATED, PAID, REPAID, LIQUIDATED) to UI format (Created, Paid, etc.)
+        const statusMap: Record<string, string> = {
+          CREATED: 'Created',
+          PAID: 'Paid',
+          REPAID: 'Repaid',
+          LIQUIDATED: 'Liquidated',
+        };
+        statuses[bill.billId] = statusMap[bill.status] || bill.status;
       }
+    }
+    return statuses;
+  }, [indexedBills]);
 
-      setBillStatuses(statuses);
-      setLoadingStatuses(false);
-    };
-
-    fetchBillStatuses();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bills?.map(b => b.onChainBillId).join(',')]); // Only re-run when bill IDs change
+  // Helper to get indexed bill by ID
+  const getIndexedBill = (billId: string): IndexedBill | undefined => {
+    return indexedBills?.find(b => b.billId === billId);
+  };
 
   // Early return AFTER all hooks
   if (!isConnected) {
@@ -168,23 +164,23 @@ export default function UserDashboard() {
   // Handle bill payment
   const handlePayBill = async (billId: string) => {
     if (!billId || !publicKey) return;
-    
+
     setPayingBillId(billId);
     try {
-      // First, check the bill status from blockchain
-      const billDetails = await getBill(billId);
-      
+      // Check bill status from indexer (no RPC needed)
+      const billDetails = getIndexedBill(billId);
+
       if (!billDetails) {
         toast({
           title: 'Error',
-          description: 'Bill not found on blockchain.',
+          description: 'Bill not found. Please refresh the page.',
           variant: 'destructive',
         });
         return;
       }
 
       // Check bill status
-      if (billDetails.status.tag === 'Paid') {
+      if (billDetails.status === 'PAID') {
         toast({
           title: 'Already Paid',
           description: 'This bill has already been paid with Lumen Later.',
@@ -193,7 +189,7 @@ export default function UserDashboard() {
         return;
       }
 
-      if (billDetails.status.tag === 'Repaid') {
+      if (billDetails.status === 'REPAID') {
         toast({
           title: 'Already Repaid',
           description: 'This bill has already been repaid.',
@@ -202,16 +198,7 @@ export default function UserDashboard() {
         return;
       }
 
-      if (billDetails.status.tag === 'Expired') {
-        toast({
-          title: 'Bill Expired',
-          description: 'This bill has expired and cannot be paid.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      if (billDetails.status.tag === 'Liquidated') {
+      if (billDetails.status === 'LIQUIDATED') {
         toast({
           title: 'Bill Liquidated',
           description: 'This bill has been liquidated.',
@@ -220,11 +207,11 @@ export default function UserDashboard() {
         return;
       }
 
-      // Only proceed if status is 'Created'
-      if (billDetails.status.tag !== 'Created') {
+      // Only proceed if status is 'CREATED'
+      if (billDetails.status !== 'CREATED') {
         toast({
           title: 'Invalid Status',
-          description: `Bill cannot be paid in status: ${billDetails.status.tag}`,
+          description: `Bill cannot be paid in status: ${billDetails.status}`,
           variant: 'destructive',
         });
         return;
@@ -236,8 +223,9 @@ export default function UserDashboard() {
         title: 'Success',
         description: 'Bill payment initiated successfully. Transaction will be confirmed shortly.',
       });
-      
-      router.refresh();
+
+      // Refresh indexed bills data
+      await refetchIndexedBills();
     } catch (error) {
       console.error('Error paying bill:', error);
       toast({
@@ -256,23 +244,23 @@ export default function UserDashboard() {
 
     setRepayingBillId(billId);
     try {
-      // First, check the bill status from blockchain
-      const billDetails = await getBill(billId);
+      // Check bill status from indexer (no RPC needed)
+      const billDetails = getIndexedBill(billId);
 
       if (!billDetails) {
         toast({
           title: 'Error',
-          description: 'Bill not found on blockchain.',
+          description: 'Bill not found. Please refresh the page.',
           variant: 'destructive',
         });
         return;
       }
 
-      // Check bill status - only allow repay if status is 'Paid'
-      if (billDetails.status.tag !== 'Paid') {
+      // Check bill status - only allow repay if status is 'PAID'
+      if (billDetails.status !== 'PAID') {
         toast({
           title: 'Cannot Repay',
-          description: `Bill must be in 'Paid' status to repay. Current status: ${billDetails.status.tag}`,
+          description: `Bill must be in 'Paid' status to repay. Current status: ${billDetails.status}`,
           variant: 'destructive',
         });
         return;
@@ -280,7 +268,7 @@ export default function UserDashboard() {
 
       // Check allowance for BNPL contract
       const allowance = await getAllowance(CONTRACT_IDS.BNPL_CORE);
-      const repayAmount = billDetails.principal;
+      const repayAmount = BigInt(billDetails.amount);
 
       // If allowance is insufficient, approve first
       if (allowance < repayAmount) {
@@ -310,7 +298,8 @@ export default function UserDashboard() {
         description: 'Loan repayment completed successfully!',
       });
 
-      router.refresh();
+      // Refresh indexed bills data
+      await refetchIndexedBills();
     } catch (error) {
       console.error('Error repaying bill:', error);
       toast({

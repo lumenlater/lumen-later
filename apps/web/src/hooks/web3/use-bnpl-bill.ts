@@ -1,10 +1,14 @@
 /**
  * BNPL Bill operations hook
+ *
+ * Reads: Uses indexer API (fast, no RPC cost)
+ * Writes: Uses RPC (mutations require contract interaction)
  */
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useBnplClient } from './use-bnpl-client';
-import { Bill, BorrowingPower } from '@lumenlater/bnpl-core-client';
+import { BorrowingPower } from '@lumenlater/bnpl-core-client';
+import { indexedBillsKeys } from '../api/use-indexed-bills';
 
 export function useBnplBill() {
   const { client, publicKey, toStroops, signAndSendTx, queryKeys } = useBnplClient();
@@ -38,8 +42,10 @@ export function useBnplBill() {
       const billId = result.result;
       return billId.toString();
     },
-    onSuccess: (billId) => {
+    onSuccess: () => {
+      // Invalidate both RPC and indexer caches
       queryClient.invalidateQueries({ queryKey: queryKeys.bills(publicKey || '') });
+      queryClient.invalidateQueries({ queryKey: indexedBillsKeys.all });
     },
   });
 
@@ -63,6 +69,7 @@ export function useBnplBill() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.all });
+      queryClient.invalidateQueries({ queryKey: indexedBillsKeys.all });
     },
   });
 
@@ -85,63 +92,19 @@ export function useBnplBill() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.all });
+      queryClient.invalidateQueries({ queryKey: indexedBillsKeys.all });
     },
   });
 
-  // Get bill helper
-  const getBill = async (billId: string): Promise<Bill | null> => {
-    if (!client) return null;
-
-    try {
-      // Check if billId is valid
-      if (!billId || billId === 'undefined') {
-        return null;
-      }
-      
-      const tx = await client.get_bill({ bill_id: BigInt(billId) });
-      const billData = tx.result;
-      
-      if (!billData) return null;
-
-      return billData;
-    } catch (error) {
-      return null;
-    }
-  };
-
-  const getUserBills = async (user: string): Promise<Bill[] | null> => {
-    if (!client) return null;
-
-    try {
-      const tx = await client.get_user_bills({ user });
-      const billsData = tx.result;
-      const bills: Bill[] = [];
-      
-      if (!billsData) return null;
-      for (const bill of billsData) {
-        const billData = await getBill(bill.toString());
-        if (!billData) return null;
-        bills.push(billData);
-      }
-      return bills;
-    } catch (error) {
-      return null;
-    }
-  };
-
-  // Cancel bill (not implemented yet)
-  const cancelBill = async (billId: string): Promise<void> => {
-    throw new Error('Cancel bill not implemented');
-  };
-
+  // Get borrowing power (keep RPC - needs real-time calculation from contract)
   const getUserBorrowingPower = async (user: string): Promise<BorrowingPower | null> => {
     if (!client) return null;
 
     try {
       const tx = await client.get_user_borrowing_power({ user });
       const borrowingPowerData = tx.result;
-      
-      if (!borrowingPowerData) return null; 
+
+      if (!borrowingPowerData) return null;
 
       return borrowingPowerData;
     } catch (error) {
@@ -150,20 +113,17 @@ export function useBnplBill() {
   };
 
   return {
-    // Queries
-    getBill,
-    getUserBills,
+    // Queries (use useUserBills/useBill from use-indexed-bills.ts for bill reads)
     getUserBorrowingPower,
-    
+
     // Mutations
-    createBill: (user: string, amount: string, orderId?: string) => 
+    createBill: (user: string, amount: string, orderId?: string) =>
       createBillMutation.mutateAsync({user, amount, orderId }),
-    payBill: (billId: string) => 
+    payBill: (billId: string) =>
       payBillMutation.mutateAsync({ billId }),
-    repayBill: (billId: string) => 
+    repayBill: (billId: string) =>
       repayBillMutation.mutateAsync({ billId }),
-    cancelBill,
-    
+
     // Loading states
     isLoading: createBillMutation.isPending || payBillMutation.isPending || repayBillMutation.isPending,
     error: createBillMutation.error || payBillMutation.error || repayBillMutation.error,
