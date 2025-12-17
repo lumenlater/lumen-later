@@ -49,9 +49,10 @@ export default function ApplicationStatusPage() {
         setLoading(false);
       }
     };
-    
+
     loadData();
-  }, [isConnected, publicKey, loadCurrentStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, publicKey]); // Remove loadCurrentStatus from deps to prevent infinite loop
 
   if (!isConnected) {
     return (

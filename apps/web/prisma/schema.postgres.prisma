@@ -12,8 +12,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("POSTGRES_URL")
+  provider  = "postgresql"
+  url       = env("POSTGRES_URL")
+  directUrl = env("POSTGRES_URL_DIRECT")
 }
 
 /// Contract events indexed by Goldsky Mirror from stellar_testnet.events
@@ -69,4 +70,75 @@ model ProtocolSnapshot {
 
   @@index([createdAt])
   @@map("protocol_snapshots")
+}
+
+/// Parsed bill events from BNPL contract
+model ParsedBill {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Bill identification
+  billId     BigInt @unique @map("bill_id") // On-chain bill ID
+  contractId String @map("contract_id")
+
+  // Participants
+  merchant String // Merchant address
+  user     String // User/Buyer address
+
+  // Bill details
+  amount  BigInt // Amount in stroops
+  orderId String @map("order_id")
+
+  // Status tracking (updated by events)
+  status        BillStatus @default(CREATED)
+  paidAt        DateTime?  @map("paid_at")
+  repaidAt      DateTime?  @map("repaid_at")
+  liquidatedAt  DateTime?  @map("liquidated_at")
+
+  // Loan info (populated when paid via BNPL)
+  loanId BigInt? @map("loan_id")
+
+  // Source event reference
+  sourceEventId String  @map("source_event_id")
+  ledgerSequence BigInt @map("ledger_sequence")
+  txHash         String @map("tx_hash")
+
+  @@index([contractId])
+  @@index([merchant])
+  @@index([user])
+  @@index([status])
+  @@index([ledgerSequence])
+  @@map("parsed_bills")
+}
+
+enum BillStatus {
+  CREATED
+  PAID
+  REPAID
+  LIQUIDATED
+}
+
+/// Parsed merchant events from BNPL contract
+model ParsedMerchant {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Merchant identification
+  address    String @unique // Merchant Stellar address
+  contractId String @map("contract_id")
+
+  // Status
+  isActive   Boolean @default(true) @map("is_active")
+  enrolledAt DateTime @map("enrolled_at")
+
+  // Source event reference
+  sourceEventId  String @map("source_event_id")
+  ledgerSequence BigInt @map("ledger_sequence")
+  txHash         String @map("tx_hash")
+
+  @@index([contractId])
+  @@index([isActive])
+  @@map("parsed_merchants")
 }

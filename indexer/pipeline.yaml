@@ -1,10 +1,11 @@
 # Goldsky Mirror Pipeline for Lumen Later BNPL Protocol
-# Streams Soroban contract events to PostgreSQL
+# Streams Soroban contract events to PostgreSQL + Webhook processing
 #
 # Setup:
 #   1. goldsky login
 #   2. goldsky secret create --name LUMEN_LATER_DB --value '{"type":"jdbc",...}'
-#   3. goldsky pipeline apply ./indexer/pipeline.yaml
+#   3. Update WEBHOOK_URL below (use ngrok for local testing)
+#   4. goldsky pipeline apply ./indexer/pipeline.yaml
 #
 # Docs: https://docs.goldsky.com/chains/stellar
 
@@ -31,10 +32,18 @@ transforms:
       )
     primary_key: id
 
+  # Webhook handler to process events into parsed_bills/parsed_merchants tables
+  process_events:
+    type: handler
+    from: filter_bnpl_contracts
+    primary_key: id
+    url: https://b8236908cd29.ngrok-free.app/api/indexer/webhook
+
 sinks:
+  # Raw events backup
   postgres:
     type: postgres
     table: contract_events
     schema: public
     secret_name: LUMEN_LATER_DB
-    from: filter_bnpl_contracts
+    from: process_events
