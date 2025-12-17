@@ -60,6 +60,7 @@ interface SorobanValue {
   i128?: string;
   string?: string;
   map?: Array<{ key: SorobanValue; val: SorobanValue }>;
+  vec?: SorobanValue[];  // For enum variants like { vec: [{ symbol: "Approved" }] }
 }
 
 /**
@@ -95,6 +96,10 @@ function extractSorobanValue(val: SorobanValue): string {
   if (val.u64) return val.u64;
   if (val.i128) return val.i128;
   if (val.string) return val.string;
+  // Handle vec format for enums like { vec: [{ symbol: "Approved" }] }
+  if (val.vec && Array.isArray(val.vec) && val.vec.length > 0) {
+    return extractSorobanValue(val.vec[0]);
+  }
   return '';
 }
 
@@ -289,12 +294,12 @@ async function processEvent(event: GoldskyEvent): Promise<{ processed: boolean; 
         if (!merchantAddress) return { processed: false, error: 'No merchant address in topics' };
 
         const data = parseEventData(event.data);
-        // MerchantStatus enum: None=0, Pending=1, Approved=2, Rejected=3, Suspended=4, Cancelled=5
+        // MerchantStatus enum values: None, Pending, Approved, Rejected, Suspended, Cancelled
+        // new_status comes as { vec: [{ symbol: "Approved" }] } which extractSorobanValue converts to "Approved"
         const newStatus = data?.new_status;
 
-        // Determine isActive based on new_status
-        // Only "Approved" (value "2" or symbol "Approved") should be active
-        const isActive = newStatus === '2' || newStatus === 'Approved';
+        // Only "Approved" status means merchant is active
+        const isActive = newStatus === 'Approved';
 
         await prismaPostgres.parsedMerchant.update({
           where: { address: merchantAddress },
@@ -304,7 +309,7 @@ async function processEvent(event: GoldskyEvent): Promise<{ processed: boolean; 
           },
         });
 
-        console.log(`[Webhook] Merchant status updated: ${merchantAddress}, isActive: ${isActive}`);
+        console.log(`[Webhook] Merchant status updated: ${merchantAddress}, newStatus: ${newStatus}, isActive: ${isActive}`);
         return { processed: true, type: 'merchant_status' };
       }
 
