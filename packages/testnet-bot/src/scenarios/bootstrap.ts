@@ -81,13 +81,13 @@ export class BootstrapScenario extends BaseScenario {
 
       await delay(2000);
 
-      // Step 4: Distribute USDC to users
+      // Step 4: Distribute USDC to users (transfer from admin, not mint)
       logger.separator();
       logger.info('Step 4: Distributing USDC to users...');
 
       for (const user of pool.users) {
-        await usdcActions.mint({
-          adminAccountName: config.admin.accountName,
+        await usdcActions.transfer({
+          fromAccountName: config.admin.accountName,
           toAddress: user.address,
           amount: toUsdcUnits(this.options.usdcPerUser),
         });
