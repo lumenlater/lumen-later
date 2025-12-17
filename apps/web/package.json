@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --experimental-https",
-    "build": "pnpm prisma:generate:all && next build",
+    "build": "pnpm --filter @lumenlater/shared build && pnpm prisma:generate:all && next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
