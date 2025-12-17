@@ -7,6 +7,7 @@ export interface MetricCardProps {
   title: string;
   value: string;
   change?: number;
+  trend?: 'up' | 'down';
   icon: React.ElementType;
   prefix?: string;
   suffix?: string;
@@ -24,12 +25,16 @@ export function MetricCard({
   title,
   value,
   change,
+  trend,
   icon: Icon,
   prefix = '',
   suffix = '',
   isLoading = false,
   description,
 }: MetricCardProps) {
+  // Determine trend color
+  const trendColor = trend === 'up' ? 'text-green-600' : trend === 'down' ? 'text-red-600' : '';
+
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between">
@@ -42,9 +47,20 @@ export function MetricCard({
             </div>
           ) : (
             <>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {prefix}{value}{suffix}
-              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className={`text-2xl font-bold text-gray-900 ${trendColor}`}>
+                  {prefix}{value}{suffix}
+                </p>
+                {trend && (
+                  <span className={trendColor}>
+                    {trend === 'up' ? (
+                      <TrendingUp className="w-5 h-5" />
+                    ) : (
+                      <TrendingDown className="w-5 h-5" />
+                    )}
+                  </span>
+                )}
+              </div>
 
               {description && (
                 <p className="text-xs text-gray-500 mt-1">{description}</p>

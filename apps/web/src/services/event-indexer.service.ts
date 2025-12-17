@@ -269,19 +269,12 @@ export class EventIndexerService {
 
   /**
    * Save protocol snapshot (for historical tracking)
+   * @deprecated Use /api/cron/protocol-snapshot instead (Vercel Cron)
    */
   async saveSnapshot(): Promise<void> {
-    const stats = await this.getStats();
-
-    await this.prisma.protocolSnapshot.create({
-      data: {
-        totalEvents: stats.totalEvents,
-        bnplCoreEvents: stats.eventsByContract['BNPL_CORE'] || 0,
-        lpTokenEvents: stats.eventsByContract['LP_TOKEN'] || 0,
-        usdcTokenEvents: stats.eventsByContract['USDC_TOKEN'] || 0,
-        latestLedger: stats.latestLedger,
-      },
-    });
+    // Snapshots are now handled by the cron job at /api/cron/protocol-snapshot
+    // This method is kept for backward compatibility but does nothing
+    console.log('[EventIndexer] saveSnapshot() is deprecated. Use /api/cron/protocol-snapshot instead.');
   }
 }
 

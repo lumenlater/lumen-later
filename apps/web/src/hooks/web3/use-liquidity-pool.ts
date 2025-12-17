@@ -11,6 +11,7 @@ import { Config } from '@/constants/config';
 import { StellarError, ErrorCodes, getErrorMessage } from '@/lib/stellar';
 import { getWalletKit } from '@/lib/stellar-wallets-kit';
 import CONTRACT_IDS from '@/config/contracts';
+import { useProtocolStats } from '@/hooks/api/use-protocol-stats';
 
 // Types
 export interface PoolStats {
@@ -80,6 +81,9 @@ export function useLiquidityPool(): UseLiquidityPoolReturn {
   const queryClient = useQueryClient();
   const kit = getWalletKit();
 
+  // Get real APY from protocol stats API
+  const { poolApyDaily, isLoading: isProtocolStatsLoading } = useProtocolStats();
+
   // Initialize LP token client
   const lpClient = useMemo(() => {
     if (!publicKey) return null;
@@ -134,15 +138,13 @@ export function useLiquidityPool(): UseLiquidityPoolReturn {
       
       // Calculate stats
       const availableLiquidity = totalAssets;
-      const utilizationRate = totalAssets > 0n 
+      const utilizationRate = totalAssets > 0n
         ? Number((totalBorrowed * 10000n) / (totalAssets + totalBorrowed)) / 100
         : 0;
-      
-      // Calculate APY based on utilization
-      const baseAPY = 5.0; // 5% base
-      const bonusAPY = utilizationRate * 0.1; // up to 10% bonus at 100% utilization
-      const currentAPY = baseAPY + bonusAPY;
-      
+
+      // Use real APY from protocol stats API (default to utilization-based calculation if not available)
+      const currentAPY = poolApyDaily ?? (5.0 + utilizationRate * 0.1);
+
       return {
         totalAssets,
         totalShares,
@@ -399,10 +401,14 @@ export function useLiquidityPool(): UseLiquidityPoolReturn {
     return available > 0n ? available : 0n;
   }, [balance, lockedBalance]);
 
-  // Calculate current APY
+  // Calculate current APY (use real APY from protocol stats)
   const calculateAPY = (): number => {
-    if (!poolStats) return 5.0; // Default 5% APY
-    return poolStats.currentAPY;
+    // Prefer protocol stats APY (from cron job with real TVL)
+    if (poolApyDaily !== null) return poolApyDaily;
+    // Fallback to pool stats
+    if (poolStats?.currentAPY) return poolStats.currentAPY;
+    // Default fallback
+    return 0;
   };
 
   // Check if user can transfer amount
@@ -451,8 +457,8 @@ export function useLiquidityPool(): UseLiquidityPoolReturn {
                 transferMutation.error ? getErrorMessage(transferMutation.error) : null;
 
   // Determine loading state
-  const isLoading = isStatsLoading || isBalanceLoading || isTotalSupplyLoading || isTotalBorrowedLoading || isUtilizationRatioLoading || 
-                    depositMutation.isPending || withdrawMutation.isPending || transferMutation.isPending;
+  const isLoading = isStatsLoading || isBalanceLoading || isTotalSupplyLoading || isTotalBorrowedLoading || isUtilizationRatioLoading ||
+                    isProtocolStatsLoading || depositMutation.isPending || withdrawMutation.isPending || transferMutation.isPending;
 
   return {
     // Pool stats

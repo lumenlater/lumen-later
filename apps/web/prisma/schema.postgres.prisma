@@ -50,23 +50,56 @@ model ContractEvent {
   @@map("contract_events")
 }
 
-/// Protocol metrics snapshot (aggregated from events)
+/// Protocol metrics snapshot (hourly cron job)
 model ProtocolSnapshot {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
 
-  // Metrics
-  totalEvents       Int @default(0) @map("total_events")
-  totalUsers        Int @default(0) @map("total_users")
-  totalMerchants    Int @default(0) @map("total_merchants")
-  totalTransactions Int @default(0) @map("total_transactions")
+  // ===== Liquidity Pool =====
+  poolTvl         BigInt?  @map("pool_tvl")          // Total Value Locked (stroops)
+  poolUtilization Decimal? @map("pool_utilization") @db.Decimal(5, 2) // Outstanding / TVL (%)
+  poolApyDaily    Decimal? @map("pool_apy_daily")   @db.Decimal(8, 4)
+  poolApyMonthly  Decimal? @map("pool_apy_monthly") @db.Decimal(8, 4)
+  poolApyTotal    Decimal? @map("pool_apy_total")   @db.Decimal(8, 4)
 
-  // By contract
-  bnplCoreEvents  Int @default(0) @map("bnpl_core_events")
-  lpTokenEvents   Int @default(0) @map("lp_token_events")
-  usdcTokenEvents Int @default(0) @map("usdc_token_events")
+  // ===== Bills =====
+  billsTotal      Int @default(0) @map("bills_total")
+  billsCreated    Int @default(0) @map("bills_created")    // Pending payment
+  billsPaid       Int @default(0) @map("bills_paid")       // Active loans
+  billsRepaid     Int @default(0) @map("bills_repaid")     // Completed
+  billsLiquidated Int @default(0) @map("bills_liquidated") // Defaulted
 
-  // Ledger info
+  // ===== Volume (stroops) =====
+  volume24h   BigInt @default(0) @map("volume_24h")
+  volume7d    BigInt @default(0) @map("volume_7d")
+  volume30d   BigInt @default(0) @map("volume_30d")
+  volumeTotal BigInt @default(0) @map("volume_total")
+
+  // ===== Fees (stroops) =====
+  fees24h   BigInt @default(0) @map("fees_24h")
+  fees7d    BigInt @default(0) @map("fees_7d")
+  fees30d   BigInt @default(0) @map("fees_30d")
+  feesTotal BigInt @default(0) @map("fees_total")
+
+  // Fee Distribution (calculated from feesTotal)
+  feesToLp        BigInt @default(0) @map("fees_to_lp")        // 70%
+  feesToTreasury  BigInt @default(0) @map("fees_to_treasury")  // 20%
+  feesToInsurance BigInt @default(0) @map("fees_to_insurance") // 10%
+
+  // ===== Participants =====
+  uniqueUsers        Int @default(0) @map("unique_users")
+  uniqueMerchants    Int @default(0) @map("unique_merchants")
+  activeUsers24h     Int @default(0) @map("active_users_24h")
+  activeMerchants24h Int @default(0) @map("active_merchants_24h")
+
+  // ===== Health Metrics =====
+  totalOutstanding    BigInt?  @map("total_outstanding")     // Outstanding loans (stroops)
+  avgBillAmount       BigInt?  @map("avg_bill_amount")       // Average bill size
+  repaymentRate       Decimal? @map("repayment_rate") @db.Decimal(5, 2)       // %
+  defaultRate         Decimal? @map("default_rate")  @db.Decimal(5, 2)        // %
+  avgRepaymentTimeHrs Int?     @map("avg_repayment_time_hrs") // Hours
+
+  // ===== Ledger Info =====
   latestLedger BigInt? @map("latest_ledger")
 
   @@index([createdAt])

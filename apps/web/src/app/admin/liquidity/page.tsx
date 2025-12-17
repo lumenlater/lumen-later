@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useLiquidityPool } from '@/hooks/web3/use-liquidity-pool';
 import { useAdminLiquidity } from '@/hooks/api/use-admin-liquidity';
+import { useProtocolStats } from '@/hooks/api/use-protocol-stats';
 import { MetricCard, MetricCardSkeleton } from '@/components/admin/MetricCard';
 
 export default function LiquidityManagement() {
@@ -42,7 +43,17 @@ export default function LiquidityManagement() {
     refetch: refetchStats,
   } = useAdminLiquidity();
 
-  const isLoading = isPoolLoading || isStatsLoading;
+  // Protocol stats (from cron job - real APY with actual TVL)
+  const {
+    poolApyDaily,
+    poolApyMonthly,
+    poolApyTotal,
+    poolUtilization: protocolUtilization,
+    isLoading: isProtocolStatsLoading,
+    refetch: refetchProtocolStats,
+  } = useProtocolStats();
+
+  const isLoading = isPoolLoading || isStatsLoading || isProtocolStatsLoading;
   const error = poolError || statsError;
 
   // Format bigint to display string
@@ -84,7 +95,7 @@ export default function LiquidityManagement() {
   };
 
   const handleRefresh = async () => {
-    await Promise.all([refreshPoolStats(), refetchStats()]);
+    await Promise.all([refreshPoolStats(), refetchStats(), refetchProtocolStats()]);
   };
 
   return (
@@ -252,11 +263,11 @@ export default function LiquidityManagement() {
               description={`${liquidityStats?.repaidLoanCount || 0} loans repaid`}
             />
             <MetricCard
-              title="Pool APY"
-              value={poolStats?.currentAPY?.toFixed(1) || '5.0'}
+              title="Pool APY (Daily)"
+              value={poolApyDaily?.toFixed(2) ?? poolStats?.currentAPY?.toFixed(2) ?? '0.00'}
               suffix="%"
               icon={Droplets}
-              description="Current annual yield"
+              description={poolApyMonthly ? `Monthly: ${poolApyMonthly.toFixed(2)}%` : 'Annualized from 24h fees'}
             />
             <MetricCard
               title="LP Holders"

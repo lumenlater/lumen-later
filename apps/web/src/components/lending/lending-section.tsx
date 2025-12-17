@@ -12,6 +12,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
 import CONTRACT_IDS from '@/config/contracts';
 import { Config } from '@/constants/config';
+import { APYHistoryChart } from '@/components/charts/APYHistoryChart';
 
 export function LendingSection() {
   const { isConnected } = useWallet();
@@ -373,6 +374,9 @@ export function LendingSection() {
           </div>
         </CardContent>
       </Card>
+
+      {/* APY History Chart */}
+      <APYHistoryChart period="7d" showTVL={true} height={300} />
     </div>
   );
 }

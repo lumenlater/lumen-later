@@ -9,15 +9,44 @@ import {
   Activity,
   CreditCard,
   RefreshCw,
+  TrendingUp,
+  Droplets,
+  PieChart,
+  BarChart3,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAdminDashboard } from '@/hooks/api/use-admin-dashboard';
+import { useProtocolStats } from '@/hooks/api/use-protocol-stats';
 import { MetricCard, MetricCardSkeleton } from '@/components/admin/MetricCard';
 import { RecentActivityList } from '@/components/admin/RecentActivityList';
 
 export default function AdminDashboard() {
   const router = useRouter();
   const { stats, isLoading, error, refetch } = useAdminDashboard();
+  const {
+    poolApyDaily,
+    poolApyMonthly,
+    poolTvl,
+    poolUtilization,
+    volumeTotal,
+    feesTotal,
+    feesToLp,
+    billsTotal,
+    billsPaid,
+    billsRepaid,
+    uniqueUsers,
+    uniqueMerchants,
+    repaymentRate,
+    formatted,
+    isLoading: isProtocolLoading,
+    refetch: refetchProtocol,
+  } = useProtocolStats();
+
+  const handleRefresh = async () => {
+    await Promise.all([refetch(), refetchProtocol()]);
+  };
+
+  const combinedLoading = isLoading || isProtocolLoading;
 
   return (
     <div>
@@ -33,11 +62,11 @@ export default function AdminDashboard() {
         </div>
 
         <button
-          onClick={() => refetch()}
-          disabled={isLoading}
+          onClick={handleRefresh}
+          disabled={combinedLoading}
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
         >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 ${combinedLoading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
       </div>
@@ -49,9 +78,9 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Metrics Grid */}
+      {/* Protocol Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {isLoading ? (
+        {combinedLoading ? (
           <>
             <MetricCardSkeleton />
             <MetricCardSkeleton />
@@ -61,31 +90,75 @@ export default function AdminDashboard() {
         ) : (
           <>
             <MetricCard
-              title="Total Volume"
-              value={stats?.tvl || '0'}
+              title="Pool TVL"
+              value={formatted.poolTvl}
               prefix="$"
               icon={DollarSign}
-              description="Cumulative bill volume"
+              description="Total Value Locked"
             />
             <MetricCard
-              title="Active Loans"
-              value={stats?.activeLoans.toString() || '0'}
-              icon={CreditCard}
-              description={`${stats?.totalLoans || 0} total loans`}
+              title="Pool APY"
+              value={poolApyDaily?.toFixed(2) ?? '0.00'}
+              suffix="%"
+              icon={TrendingUp}
+              trend={poolApyDaily && poolApyDaily > 5 ? 'up' : undefined}
+              description={poolApyMonthly ? `30d: ${poolApyMonthly.toFixed(2)}%` : 'Annualized daily yield'}
             />
             <MetricCard
-              title="Total Revenue"
-              value={stats?.totalRevenue || '0'}
+              title="Total Volume"
+              value={formatted.volumeTotal}
+              prefix="$"
+              icon={BarChart3}
+              description={`${billsTotal} bills processed`}
+            />
+            <MetricCard
+              title="Total Fees"
+              value={formatted.feesTotal}
               prefix="$"
               icon={Activity}
-              description="From fees collected"
+              description={`LP: $${formatted.feesToLp}`}
+            />
+          </>
+        )}
+      </div>
+
+      {/* Bills & Users Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {combinedLoading ? (
+          <>
+            <MetricCardSkeleton />
+            <MetricCardSkeleton />
+            <MetricCardSkeleton />
+            <MetricCardSkeleton />
+          </>
+        ) : (
+          <>
+            <MetricCard
+              title="Active Loans"
+              value={(billsPaid || 0).toString()}
+              icon={CreditCard}
+              description={`${billsRepaid || 0} repaid`}
             />
             <MetricCard
-              title="Utilization Rate"
-              value={`${stats?.utilizationRate || 0}`}
+              title="Repayment Rate"
+              value={repaymentRate?.toFixed(1) ?? '0.0'}
               suffix="%"
-              icon={Activity}
-              description="Active / Total loans"
+              icon={PieChart}
+              trend={repaymentRate && repaymentRate > 90 ? 'up' : repaymentRate && repaymentRate < 70 ? 'down' : undefined}
+              description="Successful repayments"
+            />
+            <MetricCard
+              title="Unique Users"
+              value={uniqueUsers.toString()}
+              icon={Users}
+              description={`${uniqueMerchants} merchants`}
+            />
+            <MetricCard
+              title="Pool Utilization"
+              value={poolUtilization?.toFixed(1) ?? '0.0'}
+              suffix="%"
+              icon={Droplets}
+              description="Outstanding / TVL"
             />
           </>
         )}
