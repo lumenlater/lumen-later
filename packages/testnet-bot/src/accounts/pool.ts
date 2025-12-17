@@ -46,6 +46,11 @@ export class AccountPoolManager {
       config.network.name
     );
 
+    // Preserve restored pool data if exists, otherwise create new
+    const restoredMerchants = this.pool?.merchants || [];
+    const restoredUsers = this.pool?.users || [];
+    const restoredLiquidators = this.pool?.liquidators || [];
+
     this.pool = {
       admin: {
         address: adminAccount.address,
@@ -58,36 +63,42 @@ export class AccountPoolManager {
       liquidators: [],
     };
 
-    // Load existing bot accounts
+    // Load existing bot accounts from Stellar CLI
     const existingAccounts = stellarCli.listAccounts();
 
     for (const name of existingAccounts) {
       if (name.startsWith('bot-merchant-')) {
         const address = stellarCli.getAddress(name);
+        // Check if we have restored state for this merchant
+        const restored = restoredMerchants.find((m) => m.address === address);
         this.pool.merchants.push({
           address,
           name,
           type: 'merchant',
-          createdAt: new Date(),
-          merchantStatus: 'none',
-          billsCreated: 0,
+          createdAt: restored?.createdAt || new Date(),
+          merchantStatus: restored?.merchantStatus || 'none',
+          mongoId: restored?.mongoId,
+          billsCreated: restored?.billsCreated || 0,
         });
       } else if (name.startsWith('bot-user-')) {
         const address = stellarCli.getAddress(name);
+        // Check if we have restored state for this user
+        const restored = restoredUsers.find((u) => u.address === address);
         this.pool.users.push({
           address,
           name,
           type: 'user',
-          createdAt: new Date(),
-          activeBills: [],
+          createdAt: restored?.createdAt || new Date(),
+          activeBills: restored?.activeBills || [],
         });
       } else if (name.startsWith('bot-liquidator-')) {
         const address = stellarCli.getAddress(name);
+        const restored = restoredLiquidators.find((l) => l.address === address);
         this.pool.liquidators.push({
           address,
           name,
           type: 'liquidator',
-          createdAt: new Date(),
+          createdAt: restored?.createdAt || new Date(),
         });
       }
     }
