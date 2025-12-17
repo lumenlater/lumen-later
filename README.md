@@ -134,10 +134,14 @@ When contract addresses change after redeployment:
 - USDC Token: `CC64364OA6BFTMDJYN2IPZV2RQDC2O742DJYKWN6TA3CUA44DFJE3K43`
 - LP Token: `CBHXULLUD7EDNSVM23HFO6ZK3UETZSPGGSVZ4W3ANH2SRLEDBT5GNVUB`
 
+## 📋 TODO
+
+- [ ] **Admin Auth**: Move admin wallet verification from client-side (`src/config/admin.ts`) to API-side for security. Currently admin wallets are exposed in client bundle.
+
 ## 🚀 Roadmap
 
 - ✅ **Phase 1**: Core contracts & web app
-- 🔄 **Phase 2**: Mainnet launch & merchant onboarding  
+- 🔄 **Phase 2**: Mainnet launch & merchant onboarding
 - 📋 **Phase 3**: Cross-chain expansion
 
 ## 🔐 Security
