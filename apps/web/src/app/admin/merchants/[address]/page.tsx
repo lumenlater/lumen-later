@@ -9,7 +9,6 @@ import { useToast } from '@/components/ui/use-toast';
 import {
   CheckCircle,
   XCircle,
-  Clock,
   AlertCircle,
   Loader2,
   Building2,
@@ -23,15 +22,32 @@ import {
 } from 'lucide-react';
 import { useWallet } from '@/hooks/web3/use-wallet';
 import { useBnplAdmin } from '@/hooks/web3/use-bnpl-admin';
-import { MerchantOnChainStatus, shortenAddress } from '@/lib/event-parser';
+import { shortenAddress } from '@/lib/event-parser';
 import { useQuery } from '@tanstack/react-query';
 
-interface MerchantEvent {
+interface MerchantBill {
   id: string;
-  action: string;
-  timestamp: string;
-  ledgerSequence: string;
-  transactionHash: string;
+  billId: string;
+  user: string;
+  amount: string;
+  orderId: string;
+  status: string;
+  createdAt: string;
+  paidAt: string | null;
+  repaidAt: string | null;
+  liquidatedAt: string | null;
+  txHash: string;
+}
+
+interface BillStats {
+  total: number;
+  totalVolume: number;
+  byStatus: {
+    created: number;
+    paid: number;
+    repaid: number;
+    liquidated: number;
+  };
 }
 
 interface MerchantApplication {
@@ -81,13 +97,17 @@ interface MerchantApplication {
 }
 
 interface MerchantDetail {
+  id: string;
   address: string;
-  merchantInfoId?: string;
-  status: MerchantOnChainStatus;
+  contractId: string;
+  isActive: boolean;
   enrolledAt: string;
-  approvedAt?: string;
+  txHash: string;
   ledgerSequence: string;
-  events: MerchantEvent[];
+  createdAt: string;
+  updatedAt: string;
+  bills: MerchantBill[];
+  billStats: BillStats;
   application?: MerchantApplication;
 }
 
@@ -148,19 +168,19 @@ export default function MerchantDetailPage({
     toast({ title: 'Copied', description: 'Address copied to clipboard' });
   };
 
-  const getStatusBadge = (status: MerchantOnChainStatus) => {
-    const config = {
-      Pending: { color: 'secondary', icon: Clock, text: 'Pending' },
-      Approved: { color: 'default', icon: CheckCircle, text: 'Approved' },
-      Rejected: { color: 'destructive', icon: XCircle, text: 'Rejected' },
-      Suspended: { color: 'destructive', icon: AlertCircle, text: 'Suspended' },
-      None: { color: 'secondary', icon: Clock, text: 'Unknown' },
-    };
-    const { color, icon: Icon, text } = config[status] || config.None;
+  const getStatusBadge = (isActive: boolean) => {
+    if (isActive) {
+      return (
+        <Badge variant="default" className="flex items-center gap-1 text-base px-3 py-1">
+          <CheckCircle className="w-4 h-4" />
+          Active
+        </Badge>
+      );
+    }
     return (
-      <Badge variant={color as any} className="flex items-center gap-1 text-base px-3 py-1">
-        <Icon className="w-4 h-4" />
-        {text}
+      <Badge variant="secondary" className="flex items-center gap-1 text-base px-3 py-1">
+        <XCircle className="w-4 h-4" />
+        Inactive
       </Badge>
     );
   };
@@ -217,7 +237,7 @@ export default function MerchantDetailPage({
           </div>
         </div>
         <div className="flex items-center gap-4">
-          {getStatusBadge(merchant.status)}
+          {getStatusBadge(merchant.isActive)}
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4 mr-1" />
             Refresh
@@ -225,25 +245,21 @@ export default function MerchantDetailPage({
         </div>
       </div>
 
-      {/* Action Buttons for Pending */}
-      {merchant.status === 'Pending' && (
+      {/* Action Buttons for Inactive */}
+      {!merchant.isActive && (
         <Card className="mb-6 border-yellow-200 bg-yellow-50">
           <CardContent className="py-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Action Required</p>
+                <p className="font-medium">Merchant Inactive</p>
                 <p className="text-sm text-gray-600">
-                  This merchant is awaiting approval
+                  This merchant is currently deactivated
                 </p>
               </div>
               <div className="flex gap-2">
                 <Button onClick={() => handleUpdateStatus(true)}>
                   <CheckCircle className="w-4 h-4 mr-2" />
-                  Approve
-                </Button>
-                <Button variant="destructive" onClick={() => handleUpdateStatus(false)}>
-                  <XCircle className="w-4 h-4 mr-2" />
-                  Reject
+                  Reactivate
                 </Button>
               </div>
             </div>
@@ -399,7 +415,7 @@ export default function MerchantDetailPage({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-500">On-Chain Status</p>
-                <p className="font-medium">{merchant.status}</p>
+                <p className="font-medium">{merchant.isActive ? 'Active' : 'Inactive'}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Ledger Sequence</p>
@@ -412,22 +428,24 @@ export default function MerchantDetailPage({
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Approved At</p>
-                <p className="font-medium">
-                  {merchant.approvedAt
-                    ? new Date(merchant.approvedAt).toLocaleString()
-                    : '-'}
-                </p>
-              </div>
-            </div>
-            {merchant.merchantInfoId && (
-              <div>
-                <p className="text-sm text-gray-500">Merchant Info ID (MongoDB)</p>
-                <code className="text-xs bg-gray-100 px-2 py-1 rounded block mt-1">
-                  {merchant.merchantInfoId}
+                <p className="text-sm text-gray-500">Contract ID</p>
+                <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">
+                  {shortenAddress(merchant.contractId)}
                 </code>
               </div>
-            )}
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Enrollment Transaction</p>
+              <a
+                href={`https://stellar.expert/explorer/testnet/tx/${merchant.txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline text-sm flex items-center gap-1 mt-1"
+              >
+                {shortenAddress(merchant.txHash)}
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
           </CardContent>
         </Card>
 
@@ -476,35 +494,84 @@ export default function MerchantDetailPage({
         )}
       </div>
 
-      {/* Event History */}
+      {/* Bill Stats */}
       <Card className="mt-6">
         <CardHeader>
-          <CardTitle>Event History</CardTitle>
+          <CardTitle>Bill Statistics</CardTitle>
           <CardDescription>
-            Blockchain events for this merchant
+            Overview of bills for this merchant
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {merchant.events.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <div className="text-center p-3 bg-gray-50 rounded-lg">
+              <p className="text-2xl font-bold">{merchant.billStats.total}</p>
+              <p className="text-sm text-gray-500">Total Bills</p>
+            </div>
+            <div className="text-center p-3 bg-blue-50 rounded-lg">
+              <p className="text-2xl font-bold">{merchant.billStats.byStatus.created}</p>
+              <p className="text-sm text-gray-500">Created</p>
+            </div>
+            <div className="text-center p-3 bg-yellow-50 rounded-lg">
+              <p className="text-2xl font-bold">{merchant.billStats.byStatus.paid}</p>
+              <p className="text-sm text-gray-500">Active (Paid)</p>
+            </div>
+            <div className="text-center p-3 bg-green-50 rounded-lg">
+              <p className="text-2xl font-bold">{merchant.billStats.byStatus.repaid}</p>
+              <p className="text-sm text-gray-500">Repaid</p>
+            </div>
+            <div className="text-center p-3 bg-red-50 rounded-lg">
+              <p className="text-2xl font-bold">{merchant.billStats.byStatus.liquidated}</p>
+              <p className="text-sm text-gray-500">Liquidated</p>
+            </div>
+          </div>
+          <div className="text-center p-4 bg-gray-100 rounded-lg">
+            <p className="text-sm text-gray-500">Total Volume</p>
+            <p className="text-2xl font-bold">
+              ${(merchant.billStats.totalVolume / 1e7).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Recent Bills */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Recent Bills</CardTitle>
+          <CardDescription>
+            Latest transactions for this merchant
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {merchant.bills.length > 0 ? (
             <div className="space-y-3">
-              {merchant.events.map((event) => (
+              {merchant.bills.slice(0, 10).map((bill) => (
                 <div
-                  key={event.id}
+                  key={bill.id}
                   className="flex items-center justify-between border rounded-lg p-3"
                 >
                   <div className="flex items-center gap-3">
-                    <Badge variant="outline" className="capitalize">
-                      {event.action.replace('m_', '').replace('_', ' ')}
+                    <Badge
+                      variant={
+                        bill.status === 'REPAID' ? 'default' :
+                        bill.status === 'PAID' ? 'secondary' :
+                        bill.status === 'LIQUIDATED' ? 'destructive' : 'outline'
+                      }
+                    >
+                      {bill.status}
                     </Badge>
+                    <span className="font-medium">
+                      ${(Number(bill.amount) / 1e7).toFixed(2)}
+                    </span>
                     <span className="text-sm text-gray-600">
-                      Ledger #{event.ledgerSequence}
+                      Bill #{bill.billId}
                     </span>
                     <span className="text-sm text-gray-500">
-                      {new Date(event.timestamp).toLocaleString()}
+                      {new Date(bill.createdAt).toLocaleDateString()}
                     </span>
                   </div>
                   <a
-                    href={`https://stellar.expert/explorer/testnet/tx/${event.transactionHash}`}
+                    href={`https://stellar.expert/explorer/testnet/tx/${bill.txHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:underline text-sm flex items-center gap-1"
@@ -516,7 +583,7 @@ export default function MerchantDetailPage({
               ))}
             </div>
           ) : (
-            <p className="text-gray-500 text-center py-4">No events recorded</p>
+            <p className="text-gray-500 text-center py-4">No bills recorded</p>
           )}
         </CardContent>
       </Card>
