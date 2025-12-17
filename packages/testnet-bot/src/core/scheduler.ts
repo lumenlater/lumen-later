@@ -1,10 +1,14 @@
 /**
- * Scheduler - Random interval task scheduling
+ * Scheduler - Random interval task scheduling with remote control support
  */
 
 import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { randomInt } from '@lumenlater/shared';
+import { stateManager } from './state-manager.js';
+
+// Remote control polling interval (30 seconds)
+const REMOTE_CONTROL_POLL_INTERVAL = 30 * 1000;
 
 export type SchedulerCallback = () => Promise<void>;
 
@@ -13,6 +17,7 @@ class Scheduler {
   private timeoutId: NodeJS.Timeout | null = null;
   private callback: SchedulerCallback | null = null;
   private isPaused = false;
+  private remoteControlIntervalId: NodeJS.Timeout | null = null;
 
   /**
    * Start the scheduler with a callback
@@ -27,6 +32,9 @@ class Scheduler {
     this.isRunning = true;
     logger.success('Scheduler started');
 
+    // Start remote control polling
+    this.startRemoteControlPolling();
+
     this.scheduleNext();
   }
 
@@ -39,6 +47,8 @@ class Scheduler {
       clearTimeout(this.timeoutId);
       this.timeoutId = null;
     }
+    // Stop remote control polling
+    this.stopRemoteControlPolling();
     logger.info('Scheduler stopped');
   }
 
@@ -57,9 +67,66 @@ class Scheduler {
     if (this.isPaused) {
       this.isPaused = false;
       logger.info('Scheduler resumed');
-      if (this.isRunning && !this.timeoutId) {
+      // Always schedule next when resuming (previous timeout may have expired while paused)
+      if (this.isRunning) {
+        // Clear any stale timeout reference
+        if (this.timeoutId) {
+          clearTimeout(this.timeoutId);
+          this.timeoutId = null;
+        }
         this.scheduleNext();
       }
+    }
+  }
+
+  /**
+   * Start remote control polling
+   * Periodically checks MongoDB for pause/resume commands from admin UI
+   */
+  private startRemoteControlPolling(): void {
+    if (this.remoteControlIntervalId) return;
+
+    logger.info('Remote control polling started');
+
+    this.remoteControlIntervalId = setInterval(async () => {
+      await this.checkRemoteControlState();
+    }, REMOTE_CONTROL_POLL_INTERVAL);
+
+    // Also check immediately on start
+    this.checkRemoteControlState();
+  }
+
+  /**
+   * Stop remote control polling
+   */
+  private stopRemoteControlPolling(): void {
+    if (this.remoteControlIntervalId) {
+      clearInterval(this.remoteControlIntervalId);
+      this.remoteControlIntervalId = null;
+      logger.info('Remote control polling stopped');
+    }
+  }
+
+  /**
+   * Check remote control state and sync local pause state
+   */
+  private async checkRemoteControlState(): Promise<void> {
+    try {
+      const shouldBeRunning = await stateManager.checkRemoteControlState();
+
+      // Sync local state with remote state
+      if (shouldBeRunning && this.isPaused) {
+        // Remote says run, but we're paused - resume
+        logger.info('Remote control: resuming from admin command');
+        this.resume();
+      } else if (!shouldBeRunning && !this.isPaused) {
+        // Remote says pause, but we're running - pause
+        logger.info('Remote control: pausing from admin command');
+        this.pause();
+      }
+    } catch (error: any) {
+      // Don't crash if remote check fails, just log and continue
+      logger.warn(`Remote control check failed: ${error.message}`);
     }
   }
 

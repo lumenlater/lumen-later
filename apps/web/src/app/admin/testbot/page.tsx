@@ -28,8 +28,10 @@ interface BotState {
     txCount: number;
     successCount: number;
     failureCount: number;
+    volume: number;
     scenarios: Record<string, number>;
   };
+  totalVolume: number;
   goals: {
     tvl: { current: number; target: number; percentage: number };
     merchants: { current: number; target: number; percentage: number };
@@ -42,6 +44,7 @@ interface BotState {
     success: boolean;
     details?: Record<string, any>;
     error?: string;
+    volume?: number;
   }>;
 }
 
@@ -278,6 +281,43 @@ export default function AdminTestbotPage() {
             </Card>
           </div>
 
+          {/* Volume Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Daily Volume
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  ${(botState?.dailyStats.volume || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="text-sm text-gray-500">
+                  USDC transacted today
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                  <Activity className="h-4 w-4" />
+                  Total Volume
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600">
+                  ${(botState?.totalVolume || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="text-sm text-gray-500">
+                  USDC transacted all time
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           {/* Daily Stats */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <Card>
@@ -352,6 +392,11 @@ export default function AdminTestbotPage() {
                           <Badge variant="outline" className={getScenarioColor(activity.scenario)}>
                             {getScenarioLabel(activity.scenario)}
                           </Badge>
+                          {activity.volume && activity.volume > 0 && (
+                            <span className="text-xs text-green-600 font-medium">
+                              ${activity.volume.toFixed(2)}
+                            </span>
+                          )}
                         </div>
                         <span className="text-xs text-gray-500">
                           {formatRelativeTime(activity.timestamp)}

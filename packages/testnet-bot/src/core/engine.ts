@@ -124,11 +124,11 @@ class BotEngine {
       if (result.success) {
         this.consecutiveFailures = 0;
         logger.success(`Scenario ${result.type} completed successfully`);
-        stateManager.recordActivity(result.type, true, result.details);
+        stateManager.recordActivity(result.type, true, result.details, undefined, result.volume);
       } else {
         this.consecutiveFailures++;
         logger.error(`Scenario ${result.type} failed: ${result.error}`);
-        stateManager.recordActivity(result.type, false, result.details, result.error);
+        stateManager.recordActivity(result.type, false, result.details, result.error, result.volume);
 
         // Check for too many failures
         if (this.consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES) {
@@ -171,9 +171,9 @@ class BotEngine {
         const result = await scenario.execute();
 
         if (result.success) {
-          stateManager.recordActivity(result.type, true, result.details);
+          stateManager.recordActivity(result.type, true, result.details, undefined, result.volume);
         } else {
-          stateManager.recordActivity(result.type, false, result.details, result.error);
+          stateManager.recordActivity(result.type, false, result.details, result.error, result.volume);
         }
         return;
       }
@@ -197,10 +197,10 @@ class BotEngine {
 
     if (result.success) {
       logger.success('Bootstrap completed');
-      stateManager.recordActivity('bootstrap', true, result.details);
+      stateManager.recordActivity('bootstrap', true, result.details, undefined, result.volume);
     } else {
       logger.error(`Bootstrap failed: ${result.error}`);
-      stateManager.recordActivity('bootstrap', false, result.details, result.error);
+      stateManager.recordActivity('bootstrap', false, result.details, result.error, result.volume);
     }
 
     await stateManager.saveState();
@@ -221,10 +221,10 @@ class BotEngine {
 
     if (result.success) {
       logger.success(`Scenario ${result.type} completed`);
-      stateManager.recordActivity(result.type, true, result.details);
+      stateManager.recordActivity(result.type, true, result.details, undefined, result.volume);
     } else {
       logger.error(`Scenario ${result.type} failed: ${result.error}`);
-      stateManager.recordActivity(result.type, false, result.details, result.error);
+      stateManager.recordActivity(result.type, false, result.details, result.error, result.volume);
     }
   }
 

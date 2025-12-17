@@ -315,8 +315,8 @@ model Bill {
 
 // Bot state persistence
 model BotState {
-  id        String   @id @default("current") @map("_id")
-  updatedAt DateTime @updatedAt
+  id        String    @id @default("current") @map("_id")
+  updatedAt DateTime? @updatedAt
 
   // Running status
   isRunning  Boolean   @default(false)
@@ -324,17 +324,21 @@ model BotState {
   stoppedAt  DateTime?
 
   // Daily statistics (reset daily)
-  dailyStatsDate    String  // YYYY-MM-DD format
-  dailyTxCount      Int     @default(0)
-  dailySuccessCount Int     @default(0)
-  dailyFailureCount Int     @default(0)
-  dailyScenarios    Json    // { "scenario_name": count }
+  dailyStatsDate    String? // YYYY-MM-DD format
+  dailyTxCount      Int?    @default(0)
+  dailySuccessCount Int?    @default(0)
+  dailyFailureCount Int?    @default(0)
+  dailyVolume       Float?  @default(0) // Daily transaction volume in USDC
+  dailyScenarios    Json?   // { "scenario_name": count }
+
+  // Cumulative statistics
+  totalVolume       Float?  @default(0) // Total transaction volume in USDC
 
   // Account pool state
-  accountPool Json // Full account pool state
+  accountPool Json? // Full account pool state
 
   // Goal progress snapshot
-  goalProgress Json // Current goal progress
+  goalProgress Json? // Current goal progress
 
   @@map("bot_state")
 }
@@ -350,6 +354,7 @@ model BotActivity {
   success   Boolean
   details   Json?    // Scenario result details
   error     String?  // Error message if failed
+  volume    Float?   // Transaction volume in USDC (if applicable)
 
   // Timing
   duration  Int?     // Execution time in ms

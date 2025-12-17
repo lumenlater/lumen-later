@@ -55,13 +55,14 @@ export class CreateBillScenario extends BaseScenario {
         billsCreated: (merchant.billsCreated || 0) + 1,
       });
 
+      const volumeUsdc = Number(billData.amount) / 1e7;
       return this.success({
         billId: billId.toString(),
         orderId: billData.orderId,
         merchant: merchant.name,
         user: user.name,
-        amount: Number(billData.amount) / 1e7,
-      });
+        amount: volumeUsdc,
+      }, volumeUsdc);
     } catch (error: any) {
       return this.failure(error.message);
     }
@@ -228,14 +229,15 @@ export class FullBnplCycleScenario extends BaseScenario {
         accountPool.updateUser(user.address, { activeBills });
       }
 
+      const volumeUsdc = Number(billData.amount) / 1e7;
       return this.success({
         billId: billId.toString(),
         orderId: billData.orderId,
         merchant: merchant.name,
         user: user.name,
-        amount: Number(billData.amount) / 1e7,
+        amount: volumeUsdc,
         repaid: repayNow,
-      });
+      }, volumeUsdc);
     } catch (error: any) {
       return this.failure(error.message);
     }

@@ -16,8 +16,10 @@ export interface BotState {
     txCount: number;
     successCount: number;
     failureCount: number;
+    volume: number; // Daily volume in USDC
     scenarios: Record<string, number>;
   };
+  totalVolume: number; // Cumulative volume in USDC
   accountPool: AccountPool;
   goals: GoalProgress;
   recentActivity: ActivityLog[];
@@ -29,6 +31,7 @@ export interface ActivityLog {
   success: boolean;
   details?: Record<string, any>;
   error?: string;
+  volume?: number; // Transaction volume in USDC (if applicable)
 }
 
 class StateManager {
@@ -41,8 +44,10 @@ class StateManager {
     txCount: 0,
     successCount: 0,
     failureCount: 0,
+    volume: 0,
     scenarios: {} as Record<string, number>,
   };
+  private totalVolume = 0;
   private startedAt?: Date;
 
   /**
@@ -84,6 +89,7 @@ class StateManager {
 
   /**
    * Save current state to MongoDB
+   * Uses flattened field names to match Prisma schema
    */
   async saveState(): Promise<void> {
     if (!this.isConnected) {
@@ -95,14 +101,23 @@ class StateManager {
       const goals = await goalTracker.getProgressData();
       const pool = accountPool.getPool();
 
-      const state: BotState = {
-        lastUpdated: new Date(),
+      // Flattened structure matching Prisma schema
+      const state = {
+        updatedAt: new Date(),
         isRunning: true,
         startedAt: this.startedAt,
-        dailyStats: this.dailyStats,
+        // Flattened daily stats
+        dailyStatsDate: this.dailyStats.date,
+        dailyTxCount: this.dailyStats.txCount,
+        dailySuccessCount: this.dailyStats.successCount,
+        dailyFailureCount: this.dailyStats.failureCount,
+        dailyVolume: this.dailyStats.volume,
+        dailyScenarios: this.dailyStats.scenarios,
+        // Cumulative stats
+        totalVolume: this.totalVolume,
+        // JSON fields
         accountPool: pool,
-        goals,
-        recentActivity: this.recentActivity.slice(-100), // Keep last 100
+        goalProgress: goals,
       };
 
       await this.db.collection('bot_state').updateOne(
@@ -117,6 +132,7 @@ class StateManager {
 
   /**
    * Restore state from MongoDB
+   * Reads flattened field names matching Prisma schema
    */
   async restoreState(): Promise<void> {
     if (!this.isConnected) return;
@@ -125,21 +141,28 @@ class StateManager {
       const state = await this.db.collection('bot_state').findOne({ _id: 'current' });
 
       if (state) {
-        // Restore daily stats if same day
+        // Restore daily stats if same day (handle both old and new formats)
         const today = new Date().toISOString().split('T')[0];
-        if (state.dailyStats?.date === today) {
-          this.dailyStats = state.dailyStats;
+        const stateDate = state.dailyStatsDate || state.dailyStats?.date;
+
+        if (stateDate === today) {
+          this.dailyStats = {
+            date: stateDate,
+            txCount: state.dailyTxCount ?? state.dailyStats?.txCount ?? 0,
+            successCount: state.dailySuccessCount ?? state.dailyStats?.successCount ?? 0,
+            failureCount: state.dailyFailureCount ?? state.dailyStats?.failureCount ?? 0,
+            volume: state.dailyVolume ?? state.dailyStats?.volume ?? 0,
+            scenarios: state.dailyScenarios ?? state.dailyStats?.scenarios ?? {},
+          };
           goalTracker.setDailyTxCount(this.dailyStats.txCount, today);
         }
+
+        // Restore total volume
+        this.totalVolume = state.totalVolume ?? 0;
 
         // Restore account pool
         if (state.accountPool) {
           accountPool.restorePool(state.accountPool);
-        }
-
-        // Restore recent activity
-        if (state.recentActivity) {
-          this.recentActivity = state.recentActivity;
         }
 
         logger.info('Restored previous bot state');
@@ -151,14 +174,16 @@ class StateManager {
 
   /**
    * Record scenario execution
+   * @param volume - Transaction volume in USDC (optional)
    */
-  recordActivity(scenario: string, success: boolean, details?: Record<string, any>, error?: string): void {
+  recordActivity(scenario: string, success: boolean, details?: Record<string, any>, error?: string, volume?: number): void {
     const activity: ActivityLog = {
       timestamp: new Date(),
       scenario,
       success,
       details,
       error,
+      volume,
     };
 
     this.recentActivity.unshift(activity);
@@ -180,6 +205,12 @@ class StateManager {
     }
     this.dailyStats.scenarios[scenario] = (this.dailyStats.scenarios[scenario] || 0) + 1;
 
+    // Update volume if provided
+    if (volume && volume > 0) {
+      this.dailyStats.volume += volume;
+      this.totalVolume += volume;
+    }
+
     // Record in goal tracker
     goalTracker.recordTransaction();
 
@@ -189,14 +220,20 @@ class StateManager {
 
   /**
    * Save activity log to MongoDB
+   * Uses 'bot_activities' collection to match Prisma schema
    */
   private async saveActivityLog(activity: ActivityLog): Promise<void> {
     if (!this.isConnected) return;
 
     try {
-      await this.db.collection('bot_activity').insertOne({
-        ...activity,
+      await this.db.collection('bot_activities').insertOne({
+        createdAt: activity.timestamp,
         date: new Date().toISOString().split('T')[0],
+        scenario: activity.scenario,
+        success: activity.success,
+        details: activity.details,
+        error: activity.error,
+        volume: activity.volume,
       });
     } catch (error: any) {
       logger.warn(`Failed to save activity log: ${error.message}`);
@@ -212,6 +249,7 @@ class StateManager {
       txCount: 0,
       successCount: 0,
       failureCount: 0,
+      volume: 0,
       scenarios: {},
     };
   }
@@ -235,10 +273,27 @@ class StateManager {
       isRunning: !!this.startedAt,
       startedAt: this.startedAt,
       dailyStats: this.dailyStats,
+      totalVolume: this.totalVolume,
       accountPool: pool,
       goals,
       recentActivity: this.recentActivity,
     };
+  }
+
+  /**
+   * Check remote control state from MongoDB
+   * Returns true if bot should be running, false if paused/stopped
+   */
+  async checkRemoteControlState(): Promise<boolean> {
+    if (!this.isConnected) return true; // Default to running if not connected
+
+    try {
+      const state = await this.db.collection('bot_state').findOne({ _id: 'current' });
+      return state?.isRunning ?? true;
+    } catch (error: any) {
+      logger.warn(`Failed to check remote state: ${error.message}`);
+      return true; // Default to running on error
+    }
   }
 
   /**
@@ -248,14 +303,14 @@ class StateManager {
     if (!this.isConnected) return [];
 
     try {
-      const activities = await this.db.collection('bot_activity')
+      const activities = await this.db.collection('bot_activities')
         .find({
-          timestamp: {
+          createdAt: {
             $gte: startDate,
             $lte: endDate,
           },
         })
-        .sort({ timestamp: -1 })
+        .sort({ createdAt: -1 })
         .limit(500)
         .toArray();
 
@@ -279,13 +334,13 @@ class StateManager {
       const pipeline = [
         {
           $match: {
-            timestamp: { $gte: startDate },
+            createdAt: { $gte: startDate },
           },
         },
         {
           $group: {
             _id: {
-              date: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } },
+              date: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
               scenario: '$scenario',
               success: '$success',
             },
@@ -297,7 +352,7 @@ class StateManager {
         },
       ];
 
-      return await this.db.collection('bot_activity').aggregate(pipeline).toArray();
+      return await this.db.collection('bot_activities').aggregate(pipeline).toArray();
     } catch (error: any) {
       logger.error(`Failed to get aggregated stats: ${error.message}`);
       return null;

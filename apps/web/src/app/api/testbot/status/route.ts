@@ -31,8 +31,10 @@ export async function GET() {
             txCount: 0,
             successCount: 0,
             failureCount: 0,
+            volume: 0,
             scenarios: {},
           },
+          totalVolume: 0,
           goals: {
             tvl: { current: 0, target: 50000, percentage: 0 },
             merchants: { current: 0, target: 10, percentage: 0 },
@@ -44,29 +46,35 @@ export async function GET() {
       });
     }
 
+    // Default goals structure
+    const defaultGoals = {
+      tvl: { current: 0, target: 100000, percentage: 0 },
+      merchants: { current: 0, target: 10, percentage: 0 },
+      users: { current: 0, target: 20, percentage: 0 },
+      dailyTx: { current: 0, target: 50, percentage: 0 },
+    };
+
     // Transform MongoDB data to API response
     const response = {
-      isRunning: botState.isRunning,
+      isRunning: botState.isRunning ?? false,
       startedAt: botState.startedAt?.toISOString() || null,
       dailyStats: {
-        date: botState.dailyStatsDate,
-        txCount: botState.dailyTxCount,
-        successCount: botState.dailySuccessCount,
-        failureCount: botState.dailyFailureCount,
-        scenarios: botState.dailyScenarios as Record<string, number>,
+        date: botState.dailyStatsDate || new Date().toISOString().split('T')[0],
+        txCount: botState.dailyTxCount ?? 0,
+        successCount: botState.dailySuccessCount ?? 0,
+        failureCount: botState.dailyFailureCount ?? 0,
+        volume: botState.dailyVolume ?? 0,
+        scenarios: (botState.dailyScenarios as Record<string, number>) ?? {},
       },
-      goals: botState.goalProgress as {
-        tvl: { current: number; target: number; percentage: number };
-        merchants: { current: number; target: number; percentage: number };
-        users: { current: number; target: number; percentage: number };
-        dailyTx: { current: number; target: number; percentage: number };
-      },
+      totalVolume: botState.totalVolume ?? 0,
+      goals: (botState.goalProgress as typeof defaultGoals) ?? defaultGoals,
       recentActivity: recentActivity.map((a) => ({
         timestamp: a.createdAt.toISOString(),
         scenario: a.scenario,
         success: a.success,
         details: a.details as Record<string, any> | undefined,
         error: a.error || undefined,
+        volume: a.volume ?? undefined,
       })),
     };
 

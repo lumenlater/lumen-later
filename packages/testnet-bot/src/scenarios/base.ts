@@ -20,6 +20,7 @@ export interface ScenarioResult {
   details?: Record<string, any>;
   error?: string;
   txHash?: string;
+  volume?: number; // Transaction volume in USDC (if applicable)
 }
 
 export abstract class BaseScenario {
@@ -29,11 +30,12 @@ export abstract class BaseScenario {
 
   abstract execute(): Promise<ScenarioResult>;
 
-  protected success(details?: Record<string, any>): ScenarioResult {
+  protected success(details?: Record<string, any>, volume?: number): ScenarioResult {
     return {
       success: true,
       type: this.type,
       details,
+      volume,
     };
   }
 
