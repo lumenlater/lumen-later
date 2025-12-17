@@ -1,47 +1,49 @@
 /**
- * Hook for fetching bill events directly from Soroban RPC
+ * Hook for fetching bill events from indexed database (parsed_bills table)
+ *
+ * Previously fetched directly from Soroban RPC, now uses Goldsky-indexed data.
  */
 
 import { useQuery } from '@tanstack/react-query';
 import { Config } from '@/constants/config';
-import CONTRACT_IDS from '@/config/contracts';
-import { parseScVal, parseScValMap } from '@/lib/scval-parser';
-import { Address } from '@stellar/stellar-sdk';
 
-interface EventFilter {
-  type: 'contract';
-  contractIds: string[];
-  topics?: string[][];
-}
-
-interface SorobanEvent {
+interface IndexedBill {
   id: string;
-  type: string;
-  ledger: number;
-  ledgerClosedAt: string;
+  billId: string;
   contractId: string;
-  topic: string[];
-  value: string; // base64 encoded XDR
+  merchant: string;
+  user: string;
+  amount: string;
+  orderId: string;
+  status: 'CREATED' | 'PAID' | 'REPAID' | 'LIQUIDATED';
+  createdAt: string;
+  updatedAt: string;
+  paidAt: string | null;
+  repaidAt: string | null;
+  liquidatedAt: string | null;
+  loanId: string | null;
   txHash: string;
-  operationIndex: number;
-  transactionIndex: number;
-  inSuccessfulContractCall: boolean;
+  ledgerSequence: string;
 }
 
-interface GetEventsResponse {
-  jsonrpc: string;
-  id: number;
-  result: {
-    events: SorobanEvent[];
-    latestLedger: number;
-    oldestLedger: number;
-    latestLedgerCloseTime: string;
-    oldestLedgerCloseTime: string;
-    cursor: string;
+interface BillsResponse {
+  bills: IndexedBill[];
+  total: number;
+  limit: number;
+  offset: number;
+  stats: {
+    total: number;
+    byStatus: {
+      created: number;
+      paid: number;
+      repaid: number;
+      liquidated: number;
+    };
   };
 }
 
-interface BillEvent {
+// Legacy BillEvent interface for backward compatibility
+export interface BillEvent {
   bill_id: number;
   merchant: string;
   user: string;
@@ -50,168 +52,49 @@ interface BillEvent {
   created_at: Date;
   ledger: number;
   txHash: string;
+  status?: string;
 }
 
-// Pre-encoded 'bill_new' as ScVal symbol in base64
-const BILL_NEW_TOPIC = 'AAAADwAAAAhiaWxsX25ldw==';
+// Convert IndexedBill to BillEvent for backward compatibility
+function toBillEvent(bill: IndexedBill): BillEvent {
+  return {
+    bill_id: parseInt(bill.billId),
+    merchant: bill.merchant,
+    user: bill.user,
+    amount: Number(bill.amount) / (10 ** Config.USDC_DECIMALS),
+    order_id: bill.orderId,
+    created_at: new Date(bill.createdAt),
+    ledger: parseInt(bill.ledgerSequence),
+    txHash: bill.txHash,
+    status: bill.status,
+  };
+}
 
 export function useBillEvents() {
-  // Get the latest ledger sequence
-  const getLatestLedger = async (): Promise<number> => {
-    try {
-      const response = await fetch(Config.STELLAR_RPC_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: Date.now(),
-          method: 'getLatestLedger',
-        }),
-      });
-      
-      const data = await response.json();
-      return data.result?.sequence || 0;
-    } catch (error) {
-      console.error('Error getting latest ledger:', error);
-      return 0;
-    }
-  };
-
-  // Fetch events directly from Soroban RPC
-  const fetchEvents = async (
-    startLedger: number,
-    filters: EventFilter[]
-  ): Promise<BillEvent[]> => {
-    try {
-      const response = await fetch(Config.STELLAR_RPC_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: Date.now(),
-          method: 'getEvents',
-          params: {
-            startLedger,
-            filters,
-            xdrFormat: 'base64',
-          },
-        }),
-      });
-
-      const data = await response.json() as GetEventsResponse;
-
-      if (!data.result?.events) {
-        return [];
-      }
-
-      const billEvents: BillEvent[] = [];
-
-      for (const event of data.result.events) {
-        try {
-          // Parse the base64 encoded XDR value
-          const parsedValue = parseScVal(event.value);
-          
-          // Handle both direct object and map array formats
-          let eventData: any;
-          if (Array.isArray(parsedValue)) {
-            // It's a map array format
-            eventData = parseScValMap(parsedValue);
-          } else {
-            // It's already an object
-            eventData = parsedValue;
-          }
-
-          // Extract topic information
-          const [eventTypeXdr, merchantXdr, billIdXdr] = event.topic;
-          
-          // Parse the event type from the first topic
-          const eventType = parseScVal(eventTypeXdr);
-
-          // Only process bill_new events
-          if (eventType !== 'bill_new') {
-            continue;
-          }
-
-          // Parse merchant address from second topic (if not wildcard)
-          let merchantAddress = eventData.merchant;
-          if (merchantXdr && merchantXdr !== '*') {
-            try {
-              merchantAddress = parseScVal(merchantXdr);
-            } catch {
-              // Use merchant from event data
-            }
-          }
-
-          // Parse bill ID from third topic (if not wildcard)
-          let billId = eventData.bill_id;
-          if (billIdXdr && billIdXdr !== '*') {
-            try {
-              billId = parseScVal(billIdXdr);
-            } catch {
-              // Use bill_id from event data
-            }
-          }
-
-          // Create BillEvent from parsed data
-          const billEvent: BillEvent = {
-            bill_id: Number(billId),
-            user: eventData.user,
-            merchant: merchantAddress,
-            amount: Number(eventData.amount) / (10 ** Config.USDC_DECIMALS),
-            order_id: eventData.order_id,
-            created_at: new Date(Number(eventData.created_at) * 1000),
-            ledger: event.ledger,
-            txHash: event.txHash,
-          };
-          
-          billEvents.push(billEvent);
-        } catch (error) {
-          console.error('Error parsing event:', error);
-          continue;
-        }
-      }
-
-      return billEvents;
-    } catch (error) {
-      console.error('Error fetching events:', error);
-      return [];
-    }
-  };
-
-  // Get bills by user from events
+  // Get bills by user from indexed database
   const useBillEventsByUser = (userAddress?: string | null) => {
     return useQuery({
       queryKey: ['billEvents', 'user', userAddress],
-      queryFn: async () => {
+      queryFn: async (): Promise<BillEvent[]> => {
         if (!userAddress) {
           throw new Error('User address required');
         }
 
         try {
-          const latestLedger = await getLatestLedger();
-          // Look back ~14 hours (10000 ledgers, ~5 seconds per ledger)
-          const startLedger = Math.max(1, latestLedger - 10000);
-          
-          const events = await fetchEvents(startLedger, [{
-            type: 'contract',
-            contractIds: [CONTRACT_IDS.BNPL_CORE],
-            topics: [
-              [
-                BILL_NEW_TOPIC,
-                '*', // any merchant
-                '*', // any bill_id
-              ],
-            ],
-          }]);
+          const params = new URLSearchParams({
+            user: userAddress,
+            limit: '100',
+          });
 
-          // Filter events by user
-          const userBills = events.filter(event => event.user === userAddress);
-          
-          return userBills.reverse(); // Most recent first
+          const response = await fetch(`/api/indexer/bills?${params}`);
+
+          if (!response.ok) {
+            console.error('Failed to fetch user bills:', response.statusText);
+            return [];
+          }
+
+          const data: BillsResponse = await response.json();
+          return data.bills.map(toBillEvent);
         } catch (error) {
           console.error('Error fetching user bill events:', error);
           return [];
@@ -219,36 +102,34 @@ export function useBillEvents() {
       },
       enabled: !!userAddress,
       retry: 2,
+      staleTime: 30000, // 30 seconds
     });
   };
 
-  // Get bills by merchant from events
+  // Get bills by merchant from indexed database
   const useBillEventsByMerchant = (merchantAddress?: string | null) => {
     return useQuery({
       queryKey: ['billEvents', 'merchant', merchantAddress],
-      queryFn: async () => {
+      queryFn: async (): Promise<BillEvent[]> => {
         if (!merchantAddress) {
           throw new Error('Merchant address required');
         }
 
         try {
-          const latestLedger = await getLatestLedger();
-          // Look back ~14 hours (10000 ledgers, ~5 seconds per ledger)
-          const startLedger = Math.max(1, latestLedger - 10000);
-          
-          const events = await fetchEvents(startLedger, [{
-            type: 'contract',
-            contractIds: [CONTRACT_IDS.BNPL_CORE],
-            topics: [
-              [
-                BILL_NEW_TOPIC,
-                merchantAddress ? Address.fromString(merchantAddress).toScVal().toXDR('base64') : '*',
-                '*', // any bill_id
-              ],
-            ],
-          }]);
-          
-          return events.reverse(); // Most recent first
+          const params = new URLSearchParams({
+            merchant: merchantAddress,
+            limit: '100',
+          });
+
+          const response = await fetch(`/api/indexer/bills?${params}`);
+
+          if (!response.ok) {
+            console.error('Failed to fetch merchant bills:', response.statusText);
+            return [];
+          }
+
+          const data: BillsResponse = await response.json();
+          return data.bills.map(toBillEvent);
         } catch (error) {
           console.error('Error fetching merchant bill events:', error);
           return [];
@@ -256,38 +137,95 @@ export function useBillEvents() {
       },
       enabled: !!merchantAddress,
       retry: 2,
+      staleTime: 30000,
     });
   };
 
-  // Get all bill events
+  // Get all bill events from indexed database
   const useAllBillEvents = () => {
     return useQuery({
       queryKey: ['billEvents', 'all'],
-      queryFn: async () => {
+      queryFn: async (): Promise<BillEvent[]> => {
         try {
-          const latestLedger = await getLatestLedger();
-          // Look back ~14 hours (10000 ledgers, ~5 seconds per ledger)
-          const startLedger = Math.max(1, latestLedger - 10000);
-          
-          const events = await fetchEvents(startLedger, [{
-            type: 'contract',
-            contractIds: [CONTRACT_IDS.BNPL_CORE],
-            topics: [
-              [
-                BILL_NEW_TOPIC,
-                '*', // any merchant
-                '*', // any bill_id
-              ],
-            ],
-          }]);
-          
-          return events.reverse(); // Most recent first
+          const params = new URLSearchParams({
+            limit: '100',
+          });
+
+          const response = await fetch(`/api/indexer/bills?${params}`);
+
+          if (!response.ok) {
+            console.error('Failed to fetch all bills:', response.statusText);
+            return [];
+          }
+
+          const data: BillsResponse = await response.json();
+          return data.bills.map(toBillEvent);
         } catch (error) {
           console.error('Error fetching all bill events:', error);
           return [];
         }
       },
       retry: 2,
+      staleTime: 30000,
+    });
+  };
+
+  // Get bills by status
+  const useBillEventsByStatus = (status: 'CREATED' | 'PAID' | 'REPAID' | 'LIQUIDATED') => {
+    return useQuery({
+      queryKey: ['billEvents', 'status', status],
+      queryFn: async (): Promise<BillEvent[]> => {
+        try {
+          const params = new URLSearchParams({
+            status,
+            limit: '100',
+          });
+
+          const response = await fetch(`/api/indexer/bills?${params}`);
+
+          if (!response.ok) {
+            console.error('Failed to fetch bills by status:', response.statusText);
+            return [];
+          }
+
+          const data: BillsResponse = await response.json();
+          return data.bills.map(toBillEvent);
+        } catch (error) {
+          console.error('Error fetching bill events by status:', error);
+          return [];
+        }
+      },
+      retry: 2,
+      staleTime: 30000,
+    });
+  };
+
+  // Get raw indexed bills (without conversion)
+  const useIndexedBills = (filters?: { user?: string; merchant?: string; status?: string }) => {
+    return useQuery({
+      queryKey: ['indexedBills', filters],
+      queryFn: async (): Promise<BillsResponse> => {
+        try {
+          const params = new URLSearchParams();
+          if (filters?.user) params.set('user', filters.user);
+          if (filters?.merchant) params.set('merchant', filters.merchant);
+          if (filters?.status) params.set('status', filters.status);
+          params.set('limit', '100');
+
+          const response = await fetch(`/api/indexer/bills?${params}`);
+
+          if (!response.ok) {
+            throw new Error('Failed to fetch indexed bills');
+          }
+
+          return await response.json();
+        } catch (error) {
+          console.error('Error fetching indexed bills:', error);
+          throw error;
+        }
+      },
+      retry: 2,
+      staleTime: 30000,
     });
   };
 
@@ -295,5 +233,7 @@ export function useBillEvents() {
     useBillEventsByUser,
     useBillEventsByMerchant,
     useAllBillEvents,
+    useBillEventsByStatus,
+    useIndexedBills,
   };
 }

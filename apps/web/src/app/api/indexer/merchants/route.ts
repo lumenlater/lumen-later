@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { eventIndexer } from '@/services/event-indexer.service';
+import { prismaPostgres } from '@/lib/prisma-postgres';
 import { MerchantApplicationService } from '@/services/merchant-application.service';
-import {
-  buildMerchantListFromEvents,
-  ContractEvent,
-  IndexedMerchant,
-} from '@/lib/event-parser';
-import CONTRACT_IDS from '@/config/contracts';
 
 // Extended merchant with DB info
-export interface MerchantWithInfo extends IndexedMerchant {
+export interface MerchantWithInfo {
+  address: string;
+  contractId: string;
+  isActive: boolean;
+  enrolledAt: string;
+  txHash: string;
+  ledgerSequence: string;
   businessInfo?: {
     legalName: string;
     tradingName: string;
@@ -29,109 +29,94 @@ const merchantService = new MerchantApplicationService();
 /**
  * GET /api/indexer/merchants
  *
- * Get list of merchants from indexed blockchain events.
- * Builds merchant list from m_enroll and m_status events.
+ * Get list of merchants from parsed_merchants table (populated by Goldsky webhook).
  * Enriches with business info from MongoDB.
  *
  * Query Parameters:
- * - status: Filter by status (Pending, Approved, Rejected, Suspended)
+ * - status: Filter by active status (active, inactive, all)
+ * - address: Filter by specific merchant address
  *
  * Response:
  * - merchants: Array of MerchantWithInfo
  * - total: Total count
- * - stats: { pending, approved, rejected, suspended }
+ * - stats: { active, inactive }
  */
 export async function GET(request: NextRequest) {
   try {
-    if (!eventIndexer.isConfigured()) {
-      return NextResponse.json(
-        { error: 'PostgreSQL not configured. Set POSTGRES_URL in .env' },
-        { status: 503 }
-      );
-    }
-
     const searchParams = request.nextUrl.searchParams;
     const statusFilter = searchParams.get('status');
+    const addressFilter = searchParams.get('address');
 
-    // Get all BNPL_CORE events (we need m_enroll and m_status)
-    const result = await eventIndexer.getEvents({
-      contractId: CONTRACT_IDS.BNPL_CORE,
-      limit: 1000, // Get all merchant events
-    });
+    // Build where clause
+    const where: any = {};
+    if (statusFilter === 'active') where.isActive = true;
+    if (statusFilter === 'inactive') where.isActive = false;
+    if (addressFilter) where.address = addressFilter;
 
-    // Convert to ContractEvent format for the parser
-    const events: ContractEvent[] = result.events.map(e => ({
-      id: e.id,
-      contractId: e.contractId,
-      contractName: e.contractName,
-      type: e.type,
-      topics: e.topics,
-      data: e.data,
-      ledgerSequence: e.ledgerSequence.toString(),
-      ledgerClosedAt: e.ledgerClosedAt.toISOString(),
-      transactionHash: e.transactionHash,
-      transactionSuccessful: e.transactionSuccessful,
-    }));
+    // Get merchants from parsed_merchants table
+    const [merchants, total] = await Promise.all([
+      prismaPostgres.parsedMerchant.findMany({
+        where,
+        orderBy: { enrolledAt: 'desc' },
+      }),
+      prismaPostgres.parsedMerchant.count({ where }),
+    ]);
 
-    // Build merchant list from events
-    const indexedMerchants = buildMerchantListFromEvents(events);
+    // Calculate stats (before enrichment)
+    const allMerchants = await prismaPostgres.parsedMerchant.findMany();
+    const stats = {
+      active: allMerchants.filter(m => m.isActive).length,
+      inactive: allMerchants.filter(m => !m.isActive).length,
+      total: allMerchants.length,
+    };
 
     // Enrich with MongoDB business info
     const merchantsWithInfo: MerchantWithInfo[] = await Promise.all(
-      indexedMerchants.map(async (merchant) => {
-        const enriched: MerchantWithInfo = { ...merchant };
+      merchants.map(async (merchant) => {
+        const enriched: MerchantWithInfo = {
+          address: merchant.address,
+          contractId: merchant.contractId,
+          isActive: merchant.isActive,
+          enrolledAt: merchant.enrolledAt.toISOString(),
+          txHash: merchant.txHash,
+          ledgerSequence: merchant.ledgerSequence.toString(),
+        };
 
-        // Try to get business info from MongoDB using merchantInfoId
-        if (merchant.merchantInfoId) {
-          try {
-            const application = await merchantService.getApplicationById(merchant.merchantInfoId);
-            if (application) {
-              const bizInfo = application.businessInfo as any;
-              const contactInfo = application.contactInfo as any;
+        // Try to get business info from MongoDB by applicant address
+        try {
+          const application = await merchantService.getApplicationByApplicant(merchant.address, merchant.contractId);
+          if (application) {
+            const bizInfo = application.businessInfo as any;
+            const contactInfo = application.contactInfo as any;
 
-              enriched.businessInfo = {
-                legalName: bizInfo?.legalName || '',
-                tradingName: bizInfo?.tradingName || '',
-                category: bizInfo?.category || '',
-                monthlyVolume: bizInfo?.monthlyVolume || 0,
+            enriched.businessInfo = {
+              legalName: bizInfo?.legalName || '',
+              tradingName: bizInfo?.tradingName || '',
+              category: bizInfo?.category || '',
+              monthlyVolume: bizInfo?.monthlyVolume || 0,
+            };
+
+            if (contactInfo?.primaryContact) {
+              enriched.contactInfo = {
+                email: contactInfo.primaryContact.email || '',
+                phone: contactInfo.primaryContact.phone || '',
               };
-
-              if (contactInfo?.primaryContact) {
-                enriched.contactInfo = {
-                  email: contactInfo.primaryContact.email || '',
-                  phone: contactInfo.primaryContact.phone || '',
-                };
-              }
-
-              enriched.dbStatus = application.status;
-              enriched.riskScore = application.riskScore;
             }
-          } catch (error) {
-            console.error(`Failed to fetch merchant info for ${merchant.merchantInfoId}:`, error);
+
+            enriched.dbStatus = application.status;
+            enriched.riskScore = application.riskScore;
           }
+        } catch (error) {
+          console.error(`Failed to fetch merchant info for ${merchant.address}:`, error);
         }
 
         return enriched;
       })
     );
 
-    // Calculate stats before filtering
-    const stats = {
-      pending: merchantsWithInfo.filter(m => m.status === 'Pending').length,
-      approved: merchantsWithInfo.filter(m => m.status === 'Approved').length,
-      rejected: merchantsWithInfo.filter(m => m.status === 'Rejected').length,
-      suspended: merchantsWithInfo.filter(m => m.status === 'Suspended').length,
-    };
-
-    // Apply status filter if provided
-    let merchants = merchantsWithInfo;
-    if (statusFilter) {
-      merchants = merchantsWithInfo.filter(m => m.status === statusFilter);
-    }
-
     return NextResponse.json({
-      merchants,
-      total: merchants.length,
+      merchants: merchantsWithInfo,
+      total,
       stats,
     });
   } catch (error) {

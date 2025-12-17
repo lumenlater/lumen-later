@@ -54,6 +54,11 @@ export interface ParsedData {
   newStatus?: string;
   oldStatus?: string;
   raw?: string;
+  // Bill-related fields
+  billId?: string;
+  user?: string;
+  orderId?: string;
+  amountPaid?: string;
 }
 
 // Merchant status from indexed events
@@ -158,8 +163,25 @@ export function parseData(data: string | null): ParsedData {
         if (key === 'old_status' && val?.vec && Array.isArray(val.vec)) {
           result.oldStatus = val.vec[0]?.symbol || 'Unknown';
         }
+        // BNPL_CORE bill events: bill_id (u64)
+        if (key === 'bill_id' && val?.u64) {
+          result.billId = val.u64;
+        }
+        // BNPL_CORE bill events: user address
+        if (key === 'user' && val?.address) {
+          result.user = val.address;
+        }
+        // BNPL_CORE bill events: order_id (string)
+        if (key === 'order_id' && val?.string) {
+          result.orderId = val.string;
+        }
+        // BNPL_CORE repayment: amount_paid (i128)
+        if (key === 'amount_paid' && val?.i128) {
+          const amountPaid = BigInt(val.i128) / BigInt(10 ** 7);
+          result.amountPaid = `${amountPaid.toString()} USDC`;
+        }
       }
-      if (result.amount || result.shares || result.merchant || result.newStatus) return result;
+      if (result.amount || result.shares || result.merchant || result.newStatus || result.billId) return result;
     }
 
     // Handle approve format: {"vec":[{"i128":"amount"},{"u32":expiration}]}
@@ -237,7 +259,8 @@ export function getActionLabel(action: string): string {
     borrow: 'Borrow',
     repay: 'Repay',
     bill_new: 'New Bill',
-    payment: 'Payment',
+    payment: 'BNPL Payment',
+    repayment: 'Loan Repaid',
     liquidate: 'Liquidation',
     m_enroll: 'Merchant Enroll',
     m_status: 'Merchant Status',

@@ -96,6 +96,9 @@ model ParsedBill {
   repaidAt      DateTime?  @map("repaid_at")
   liquidatedAt  DateTime?  @map("liquidated_at")
 
+  // Repayment info
+  amountRepaid BigInt? @map("amount_repaid") // Amount actually repaid (including fees)
+
   // Loan info (populated when paid via BNPL)
   loanId BigInt? @map("loan_id")
 

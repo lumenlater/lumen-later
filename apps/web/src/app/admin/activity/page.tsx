@@ -244,13 +244,25 @@ export default function AdminActivityPage() {
                       )}
                       <div>
                         <span className="text-gray-500">Data: </span>
+                        {data.billId && (
+                          <Badge variant="secondary" className="mr-2">Bill #{data.billId}</Badge>
+                        )}
                         {data.amount && <span className="font-medium">{data.amount}</span>}
+                        {data.amountPaid && <span className="font-medium text-green-600 ml-2">{data.amountPaid}</span>}
                         {data.shares && <span className="font-medium ml-2">{data.shares}</span>}
                         {data.expiration && <span className="text-gray-500 ml-2">(exp: {data.expiration})</span>}
                         {data.merchant && (
-                          <span className="font-medium">
+                          <span className="font-medium ml-2">
                             Merchant: <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">{shortenAddress(data.merchant)}</code>
                           </span>
+                        )}
+                        {data.user && !data.merchant && (
+                          <span className="font-medium ml-2">
+                            User: <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">{shortenAddress(data.user)}</code>
+                          </span>
+                        )}
+                        {data.orderId && (
+                          <span className="text-gray-500 ml-2">Order: {data.orderId.slice(0, 8)}...</span>
                         )}
                         {data.merchantInfoId && (
                           <span className="text-gray-500 ml-2">ID: {data.merchantInfoId.slice(0, 8)}...</span>
@@ -263,7 +275,7 @@ export default function AdminActivityPage() {
                             </Badge>
                           </span>
                         )}
-                        {data.raw && !data.amount && !data.merchant && !data.newStatus && <span className="text-gray-500">{data.raw}</span>}
+                        {data.raw && !data.amount && !data.merchant && !data.newStatus && !data.billId && <span className="text-gray-500">{data.raw}</span>}
                       </div>
                     </div>
 

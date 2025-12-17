@@ -185,17 +185,30 @@ async function processEvent(event: GoldskyEvent): Promise<{ processed: boolean; 
         if (!data) return { processed: false, error: 'Could not parse repayment data' };
 
         const billId = data.bill_id;
+        const amountPaid = data.amount_paid;
+        const user = data.user;
+
         if (!billId) return { processed: false, error: 'Missing bill_id' };
 
-        await prismaPostgres.parsedBill.update({
+        // Try to update existing bill, or log if not found
+        const existingBill = await prismaPostgres.parsedBill.findUnique({
           where: { billId: BigInt(billId) },
-          data: {
-            status: BillStatus.REPAID,
-            repaidAt: new Date(event.ledger_closed_at),
-          },
         });
 
-        console.log(`[Webhook] Bill #${billId} repaid`);
+        if (existingBill) {
+          await prismaPostgres.parsedBill.update({
+            where: { billId: BigInt(billId) },
+            data: {
+              status: BillStatus.REPAID,
+              repaidAt: new Date(event.ledger_closed_at),
+              amountRepaid: amountPaid ? BigInt(amountPaid) : null,
+            },
+          });
+          console.log(`[Webhook] Bill #${billId} repaid by ${user}, amount: ${amountPaid}`);
+        } else {
+          console.warn(`[Webhook] Bill #${billId} not found for repayment event - bill_new event may not have been processed yet`);
+        }
+
         return { processed: true, type: 'bill_repaid' };
       }
 

@@ -6,19 +6,19 @@ import { BackButton } from '@/components/ui/back-button';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { CheckCircle, XCircle, Clock, AlertCircle, Loader2, RefreshCw, Eye } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Loader2, RefreshCw, Eye } from 'lucide-react';
 import { useWallet } from '@/hooks/web3/use-wallet';
 import { useBnplAdmin } from '@/hooks/web3/use-bnpl-admin';
-import { MerchantOnChainStatus, shortenAddress } from '@/lib/event-parser';
+import { shortenAddress } from '@/lib/event-parser';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 
 interface MerchantWithInfo {
   address: string;
-  merchantInfoId?: string;
-  status: MerchantOnChainStatus;
+  contractId: string;
+  isActive: boolean;
   enrolledAt: string;
-  approvedAt?: string;
+  txHash: string;
   ledgerSequence: string;
   businessInfo?: {
     legalName: string;
@@ -38,10 +38,9 @@ interface MerchantsResponse {
   merchants: MerchantWithInfo[];
   total: number;
   stats: {
-    pending: number;
-    approved: number;
-    rejected: number;
-    suspended: number;
+    active: number;
+    inactive: number;
+    total: number;
   };
 }
 
@@ -54,7 +53,7 @@ export default function MerchantManagement() {
   const { data, isLoading, refetch } = useQuery<MerchantsResponse>({
     queryKey: ['indexer-merchants'],
     queryFn: async () => {
-      const emptyResponse = { merchants: [], total: 0, stats: { pending: 0, approved: 0, rejected: 0, suspended: 0 } };
+      const emptyResponse = { merchants: [], total: 0, stats: { active: 0, inactive: 0, total: 0 } };
       try {
         const res = await fetch('/api/indexer/merchants');
         if (!res.ok) return emptyResponse;
@@ -68,7 +67,7 @@ export default function MerchantManagement() {
   });
 
   const merchants = data?.merchants || [];
-  const stats = data?.stats || { pending: 0, approved: 0, rejected: 0, suspended: 0 };
+  const stats = data?.stats || { active: 0, inactive: 0, total: 0 };
 
   const handleUpdateStatus = async (merchantAddress: string, approve: boolean) => {
     if (!publicKey) {
@@ -106,22 +105,19 @@ export default function MerchantManagement() {
     }
   };
 
-  const getStatusBadge = (status: MerchantOnChainStatus) => {
-    const statusConfig = {
-      Pending: { color: 'secondary', icon: Clock, text: 'Pending' },
-      Approved: { color: 'default', icon: CheckCircle, text: 'Approved' },
-      Rejected: { color: 'destructive', icon: XCircle, text: 'Rejected' },
-      Suspended: { color: 'destructive', icon: AlertCircle, text: 'Suspended' },
-      None: { color: 'secondary', icon: Clock, text: 'Unknown' },
-    };
-
-    const config = statusConfig[status] || statusConfig.None;
-    const Icon = config.icon;
-
+  const getStatusBadge = (isActive: boolean) => {
+    if (isActive) {
+      return (
+        <Badge variant="default" className="flex items-center gap-1">
+          <CheckCircle className="w-3 h-3" />
+          Active
+        </Badge>
+      );
+    }
     return (
-      <Badge variant={config.color as any} className="flex items-center gap-1">
-        <Icon className="w-3 h-3" />
-        {config.text}
+      <Badge variant="secondary" className="flex items-center gap-1">
+        <XCircle className="w-3 h-3" />
+        Inactive
       </Badge>
     );
   };
@@ -154,22 +150,18 @@ export default function MerchantManagement() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <Card className="p-4">
-          <p className="text-sm text-gray-600">Total On-Chain</p>
-          <p className="text-2xl font-bold">{merchants.length}</p>
+          <p className="text-sm text-gray-600">Total Merchants</p>
+          <p className="text-2xl font-bold">{stats.total}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-gray-600">Pending</p>
-          <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+          <p className="text-sm text-gray-600">Active</p>
+          <p className="text-2xl font-bold text-green-600">{stats.active}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-gray-600">Approved</p>
-          <p className="text-2xl font-bold text-green-600">{stats.approved}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-sm text-gray-600">Rejected</p>
-          <p className="text-2xl font-bold text-red-600">{stats.rejected}</p>
+          <p className="text-sm text-gray-600">Inactive</p>
+          <p className="text-2xl font-bold text-gray-600">{stats.inactive}</p>
         </Card>
       </div>
 
@@ -221,7 +213,7 @@ export default function MerchantManagement() {
                       <span className="text-gray-400">-</span>
                     )}
                   </td>
-                  <td className="p-4">{getStatusBadge(merchant.status)}</td>
+                  <td className="p-4">{getStatusBadge(merchant.isActive)}</td>
                   <td className="p-4">
                     <p className="text-sm text-gray-600">
                       {new Date(merchant.enrolledAt).toLocaleString()}
@@ -235,37 +227,32 @@ export default function MerchantManagement() {
                           Detail
                         </Button>
                       </Link>
-                      {merchant.status === 'Pending' && (
-                        <>
-                          <Button
-                            size="sm"
-                            onClick={() => handleUpdateStatus(merchant.address, true)}
-                            disabled={authorizing === merchant.address}
-                          >
-                            {authorizing === merchant.address ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              'Approve'
-                            )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleUpdateStatus(merchant.address, false)}
-                            disabled={authorizing === merchant.address}
-                          >
-                            Reject
-                          </Button>
-                        </>
-                      )}
-                      {merchant.status === 'Suspended' && (
+                      {!merchant.isActive && (
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => handleUpdateStatus(merchant.address, true)}
                           disabled={authorizing === merchant.address}
                         >
-                          Reactivate
+                          {authorizing === merchant.address ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            'Reactivate'
+                          )}
+                        </Button>
+                      )}
+                      {merchant.isActive && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleUpdateStatus(merchant.address, false)}
+                          disabled={authorizing === merchant.address}
+                        >
+                          {authorizing === merchant.address ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            'Deactivate'
+                          )}
                         </Button>
                       )}
                     </div>

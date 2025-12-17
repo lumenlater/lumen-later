@@ -25,6 +25,7 @@ import {
   shortenAddress,
   filterEvents,
   isOutgoingEvent,
+  getActionLabel,
 } from '@/lib/event-parser';
 
 interface EventsResponse {
@@ -631,6 +632,7 @@ export default function UserDashboard() {
                   const data = parseData(event.data);
                   const isOutgoing = isOutgoingEvent(event, publicKey);
                   const isLpEvent = event.contractName === 'LP_TOKEN';
+                  const isBillEvent = ['bill_new', 'payment', 'repayment', 'liquidate'].includes(action);
 
                   return (
                     <div
@@ -643,9 +645,10 @@ export default function UserDashboard() {
                             {event.contractName}
                           </Badge>
                           <Badge variant="outline" className="capitalize">
-                            {action}
+                            {getActionLabel(action)}
                           </Badge>
-                          {!isLpEvent && (
+                          {/* Show direction for transfers, not for LP or bill events */}
+                          {!isLpEvent && !isBillEvent && (
                             <Badge
                               variant="outline"
                               className={isOutgoing ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}
@@ -653,15 +656,23 @@ export default function UserDashboard() {
                               {isOutgoing ? 'Sent' : 'Received'}
                             </Badge>
                           )}
+                          {/* Show bill ID for bill events */}
+                          {data.billId && (
+                            <Badge variant="secondary" className="text-xs">
+                              Bill #{data.billId}
+                            </Badge>
+                          )}
                         </div>
                         <div className="text-right">
                           {data.amount && <span className="font-medium block">{data.amount}</span>}
+                          {data.amountPaid && <span className="font-medium block text-green-600">{data.amountPaid}</span>}
                           {data.shares && <span className="text-sm text-gray-500 block">{data.shares}</span>}
-                          {data.raw && !data.amount && <span className="text-sm text-gray-500">{data.raw}</span>}
+                          {data.raw && !data.amount && !data.billId && <span className="text-sm text-gray-500">{data.raw}</span>}
                         </div>
                       </div>
 
-                      {!isLpEvent && (
+                      {/* Show addresses for transfers */}
+                      {!isLpEvent && !isBillEvent && (
                         <div className="flex items-center gap-4 text-sm text-gray-600">
                           {from && from !== publicKey && (
                             <div>
@@ -677,6 +688,26 @@ export default function UserDashboard() {
                               <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">
                                 {shortenAddress(to)}
                               </code>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Show bill details for bill events */}
+                      {isBillEvent && (
+                        <div className="flex items-center gap-4 text-sm text-gray-600">
+                          {data.merchant && (
+                            <div>
+                              <span className="text-gray-500">Merchant: </span>
+                              <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">
+                                {shortenAddress(data.merchant)}
+                              </code>
+                            </div>
+                          )}
+                          {data.orderId && (
+                            <div>
+                              <span className="text-gray-500">Order: </span>
+                              <span className="text-xs">{data.orderId.slice(0, 8)}...</span>
                             </div>
                           )}
                         </div>
