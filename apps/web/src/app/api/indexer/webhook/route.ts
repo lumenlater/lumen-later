@@ -260,24 +260,26 @@ async function processEvent(event: GoldskyEvent): Promise<{ processed: boolean; 
         const merchant = data.merchant;
         if (!merchant) return { processed: false, error: 'Missing merchant address' };
 
+        // Merchant enrollment starts with isActive: false (Pending status)
+        // Will be set to true when admin approves via m_status event
         await prismaPostgres.parsedMerchant.upsert({
           where: { address: merchant },
           create: {
             address: merchant,
             contractId: event.contract_id,
-            isActive: true,
+            isActive: false,  // Pending until approved
             enrolledAt: new Date(event.ledger_closed_at),
             sourceEventId: event.id,
             ledgerSequence,
             txHash: event.transaction_hash,
           },
           update: {
-            isActive: true,
+            // Don't change isActive on re-enrollment
             enrolledAt: new Date(event.ledger_closed_at),
           },
         });
 
-        console.log(`[Webhook] Merchant enrolled: ${merchant}`);
+        console.log(`[Webhook] Merchant enrolled (pending approval): ${merchant}`);
         return { processed: true, type: 'merchant_enrolled' };
       }
 
@@ -286,14 +288,23 @@ async function processEvent(event: GoldskyEvent): Promise<{ processed: boolean; 
         const merchantAddress = values[0];
         if (!merchantAddress) return { processed: false, error: 'No merchant address in topics' };
 
+        const data = parseEventData(event.data);
+        // MerchantStatus enum: None=0, Pending=1, Approved=2, Rejected=3, Suspended=4, Cancelled=5
+        const newStatus = data?.new_status;
+
+        // Determine isActive based on new_status
+        // Only "Approved" (value "2" or symbol "Approved") should be active
+        const isActive = newStatus === '2' || newStatus === 'Approved';
+
         await prismaPostgres.parsedMerchant.update({
           where: { address: merchantAddress },
           data: {
+            isActive,
             updatedAt: new Date(),
           },
         });
 
-        console.log(`[Webhook] Merchant status updated: ${merchantAddress}`);
+        console.log(`[Webhook] Merchant status updated: ${merchantAddress}, isActive: ${isActive}`);
         return { processed: true, type: 'merchant_status' };
       }
 
