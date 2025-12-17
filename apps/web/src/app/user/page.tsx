@@ -12,8 +12,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { ArrowLeft, CreditCard, TrendingUp, DollarSign, Shield, Activity, ExternalLink } from 'lucide-react';
+import { ArrowLeft, CreditCard, TrendingUp, DollarSign, Shield, Activity, ExternalLink, Eye } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useMemo, useState, useEffect } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import CONTRACT_IDS from '@/config/contracts';
@@ -468,10 +469,15 @@ export default function UserDashboard() {
                       </div>
                       <div className="text-right">
                         <p className="text-lg font-bold">${bill.amount.toFixed(2)}</p>
-                        {bill.onChainBillId && (
-                          <Badge variant="outline" className="text-xs">
+                        {bill.onChainBillId ? (
+                          <Link
+                            href={`/user/bills/${bill.onChainBillId}`}
+                            className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                          >
                             #{bill.onChainBillId}
-                          </Badge>
+                          </Link>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">Pending</Badge>
                         )}
                       </div>
                     </div>
@@ -575,12 +581,14 @@ export default function UserDashboard() {
                             </span>
                           </div>
                         )}
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                        >
-                          Details
-                        </Button>
+                        {bill.onChainBillId && (
+                          <Link href={`/user/bills/${bill.onChainBillId}`}>
+                            <Button variant="outline" size="sm">
+                              <Eye className="w-3 h-3 mr-1" />
+                              Details
+                            </Button>
+                          </Link>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -9,11 +9,29 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Store, Plus } from 'lucide-react';
+import { ArrowLeft, Store, Plus, Eye, DollarSign, FileText, CheckCircle, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useState, useMemo } from 'react';
 import { useToast } from '@/components/ui/use-toast';
+import { useQuery } from '@tanstack/react-query';
 import CONTRACT_IDS from '@/config/contracts';
+
+interface MerchantStats {
+  billStats?: {
+    total: number;
+    totalVolume: number;
+    paidVolume: number;
+    actualRevenue: number;
+    feesDeducted: number;
+    byStatus: {
+      created: number;
+      paid: number;
+      repaid: number;
+      liquidated: number;
+    };
+  };
+}
 
 export default function MerchantPage() {
   const { isConnected, publicKey } = useWallet();
@@ -33,6 +51,20 @@ export default function MerchantPage() {
 
   const { data: offChainBills, isLoading: billsLoading } = useBillsByMerchant(publicKey);
   const { data: onChainBills, isLoading: onChainLoading } = useBillEventsByMerchant(publicKey);
+
+  // Fetch merchant stats from indexer (actual revenue, volume breakdown)
+  const { data: merchantData } = useQuery<MerchantStats>({
+    queryKey: ['merchant-stats', publicKey],
+    queryFn: async () => {
+      if (!publicKey) return {};
+      const res = await fetch(`/api/indexer/merchants/${publicKey}`);
+      if (!res.ok) return {};
+      const data = await res.json();
+      return data.merchant || {};
+    },
+    enabled: !!publicKey,
+    refetchInterval: 30000,
+  });
 
   // Combine on-chain and off-chain bills
   const bills = useMemo(() => {
@@ -141,55 +173,83 @@ export default function MerchantPage() {
         <p className="text-gray-600 mb-8">Create and manage Lumen Later bills for your customers</p>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* Bills Created */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
-                Total Bills
+              <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Bills Created
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {bills?.length || 0}
+                {merchantData?.billStats?.total || bills?.length || 0}
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                All time
+                {merchantData?.billStats?.byStatus?.created || 0} pending
               </p>
             </CardContent>
           </Card>
 
+          {/* Payments Received */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
+                Payments Received
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {(merchantData?.billStats?.byStatus?.paid || 0) +
+                 (merchantData?.billStats?.byStatus?.repaid || 0) +
+                 (merchantData?.billStats?.byStatus?.liquidated || 0)}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {merchantData?.billStats?.byStatus?.created || 0} awaiting payment
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Total Volume */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
                 Total Volume
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                ${bills?.reduce((sum, bill) => sum + bill.amount, 0).toFixed(2) || '0.00'}
+                ${merchantData?.billStats?.paidVolume
+                  ? (merchantData.billStats.paidVolume / 1e7).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  : bills?.reduce((sum, bill) => sum + bill.amount, 0).toFixed(2) || '0.00'}
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                USDC processed
+                Processed volume (before fees)
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          {/* Actual Revenue */}
+          <Card className="border-green-200 bg-green-50">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
-                Recent Bills
+              <CardTitle className="text-sm font-medium text-green-700 flex items-center gap-2">
+                <DollarSign className="w-4 h-4" />
+                Actual Revenue
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                {bills?.filter(bill => {
-                  const dayAgo = new Date();
-                  dayAgo.setDate(dayAgo.getDate() - 1);
-                  return new Date(bill.createdAt) > dayAgo;
-                }).length || 0}
+              <div className="text-2xl font-bold text-green-700">
+                ${merchantData?.billStats?.actualRevenue
+                  ? (merchantData.billStats.actualRevenue / 1e7).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  : '0.00'}
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Last 24 hours
+              <p className="text-xs text-green-600 mt-1">
+                After 1.5% fee (-${merchantData?.billStats?.feesDeducted
+                  ? (merchantData.billStats.feesDeducted / 1e7).toFixed(2)
+                  : '0.00'})
               </p>
             </CardContent>
           </Card>
@@ -278,7 +338,7 @@ export default function MerchantPage() {
               ) : bills && bills.length > 0 ? (
                 <div className="space-y-3">
                   {bills.slice(0, 5).map((bill) => (
-                    <div key={bill.id} className="border rounded-lg p-3">
+                    <div key={bill.id} className="border rounded-lg p-3 hover:bg-gray-50 transition-colors">
                       <div className="flex justify-between items-start">
                         <div>
                           <p className="font-medium">{bill.description}</p>
@@ -289,7 +349,13 @@ export default function MerchantPage() {
                         <div className="text-right">
                           <p className="font-bold">${bill.amount.toFixed(2)}</p>
                           {bill.onChainBillId ? (
-                            <p className="text-xs text-gray-500">#{bill.onChainBillId}</p>
+                            <Link
+                              href={`/merchant/bills/${bill.onChainBillId}`}
+                              className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 justify-end"
+                            >
+                              #{bill.onChainBillId}
+                              <Eye className="w-3 h-3" />
+                            </Link>
                           ) : (
                             <Badge variant="secondary" className="text-xs">
                               Pending

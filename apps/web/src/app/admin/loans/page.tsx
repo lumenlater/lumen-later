@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { BackButton } from '@/components/ui/back-button';
 import {
   Search,
-  Eye,
   ExternalLink,
   RefreshCw,
   ChevronLeft,
@@ -17,6 +16,7 @@ import {
   CheckCircle,
   FileText,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useAdminLoans, type LoanData } from '@/hooks/api/use-admin-loans';
 import { MetricCard, MetricCardSkeleton } from '@/components/admin/MetricCard';
 
@@ -222,6 +222,12 @@ export default function LoansManagement() {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center space-x-2">
+                          <Link
+                            href={`/admin/bills/${loan.billId}`}
+                            className="px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                          >
+                            View Details
+                          </Link>
                           <a
                             href={`https://stellar.expert/explorer/testnet/tx/${loan.txHash}`}
                             target="_blank"

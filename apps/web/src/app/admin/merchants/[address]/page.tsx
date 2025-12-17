@@ -19,7 +19,9 @@ import {
   ExternalLink,
   Copy,
   RefreshCw,
+  Eye,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useWallet } from '@/hooks/web3/use-wallet';
 import { useBnplAdmin } from '@/hooks/web3/use-bnpl-admin';
 import { shortenAddress } from '@/lib/event-parser';
@@ -42,6 +44,15 @@ interface MerchantBill {
 interface BillStats {
   total: number;
   totalVolume: number;
+  paidVolume: number;
+  actualRevenue: number;
+  feesDeducted: number;
+  volumeByStatus: {
+    created: number;
+    paid: number;
+    repaid: number;
+    liquidated: number;
+  };
   byStatus: {
     created: number;
     paid: number;
@@ -504,33 +515,51 @@ export default function MerchantDetailPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-              <div className="text-center p-3 bg-gray-50 rounded-lg">
-                <p className="text-2xl font-bold">{merchant.billStats.total}</p>
-                <p className="text-sm text-gray-500">Total Bills</p>
+            {/* Volume Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-500">Total Volume</p>
+                <p className="text-2xl font-bold">
+                  ${((merchant.billStats.totalVolume || 0) / 1e7).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">All bills created</p>
               </div>
-              <div className="text-center p-3 bg-blue-50 rounded-lg">
-                <p className="text-2xl font-bold">{merchant.billStats.byStatus?.created || 0}</p>
-                <p className="text-sm text-gray-500">Created</p>
+              <div className="p-4 bg-blue-50 rounded-lg">
+                <p className="text-sm text-gray-500">Paid Volume</p>
+                <p className="text-2xl font-bold text-blue-700">
+                  ${((merchant.billStats.paidVolume || 0) / 1e7).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">Bills processed (before fees)</p>
               </div>
-              <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                <p className="text-2xl font-bold">{merchant.billStats.byStatus?.paid || 0}</p>
-                <p className="text-sm text-gray-500">Active (Paid)</p>
-              </div>
-              <div className="text-center p-3 bg-green-50 rounded-lg">
-                <p className="text-2xl font-bold">{merchant.billStats.byStatus?.repaid || 0}</p>
-                <p className="text-sm text-gray-500">Repaid</p>
-              </div>
-              <div className="text-center p-3 bg-red-50 rounded-lg">
-                <p className="text-2xl font-bold">{merchant.billStats.byStatus?.liquidated || 0}</p>
-                <p className="text-sm text-gray-500">Liquidated</p>
+              <div className="p-4 bg-green-50 rounded-lg border-2 border-green-200">
+                <p className="text-sm text-gray-500">Actual Revenue</p>
+                <p className="text-2xl font-bold text-green-700">
+                  ${((merchant.billStats.actualRevenue || 0) / 1e7).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  After fees (-${((merchant.billStats.feesDeducted || 0) / 1e7).toFixed(2)})
+                </p>
               </div>
             </div>
-            <div className="text-center p-4 bg-gray-100 rounded-lg">
-              <p className="text-sm text-gray-500">Total Volume</p>
-              <p className="text-2xl font-bold">
-                ${((merchant.billStats.totalVolume || 0) / 1e7).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
+
+            {/* Bill Count by Status */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-3 bg-gray-100 rounded-lg">
+                <p className="text-xl font-bold">{merchant.billStats.byStatus?.created || 0}</p>
+                <p className="text-sm text-gray-500">Pending</p>
+              </div>
+              <div className="text-center p-3 bg-yellow-50 rounded-lg">
+                <p className="text-xl font-bold">{merchant.billStats.byStatus?.paid || 0}</p>
+                <p className="text-sm text-gray-500">Active</p>
+              </div>
+              <div className="text-center p-3 bg-green-50 rounded-lg">
+                <p className="text-xl font-bold">{merchant.billStats.byStatus?.repaid || 0}</p>
+                <p className="text-sm text-gray-500">Completed</p>
+              </div>
+              <div className="text-center p-3 bg-red-50 rounded-lg">
+                <p className="text-xl font-bold">{merchant.billStats.byStatus?.liquidated || 0}</p>
+                <p className="text-sm text-gray-500">Liquidated</p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -550,7 +579,7 @@ export default function MerchantDetailPage({
               {merchant.bills.slice(0, 10).map((bill) => (
                 <div
                   key={bill.id}
-                  className="flex items-center justify-between border rounded-lg p-3"
+                  className="flex items-center justify-between border rounded-lg p-3 hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <Badge
@@ -572,15 +601,23 @@ export default function MerchantDetailPage({
                       {new Date(bill.createdAt).toLocaleDateString()}
                     </span>
                   </div>
-                  <a
-                    href={`https://stellar.expert/explorer/testnet/tx/${bill.txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline text-sm flex items-center gap-1"
-                  >
-                    View Tx
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/admin/bills/${bill.billId}`}
+                      className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Details
+                    </Link>
+                    <a
+                      href={`https://stellar.expert/explorer/testnet/tx/${bill.txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-500 hover:text-gray-700 text-sm flex items-center gap-1"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
                 </div>
               ))}
             </div>
