@@ -6,50 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BusinessInfo } from '@/types/merchant';
+import { generateBusinessInfo } from '@lumenlater/shared';
 
 interface BusinessInfoStepProps {
   initialData?: Partial<BusinessInfo>;
   onNext: (data: BusinessInfo) => void;
   onBack?: () => void;
 }
-
-// Test data generators
-const companyNames = ['Stellar', 'Nova', 'Quantum', 'Phoenix', 'Apex', 'Zenith', 'Cosmos', 'Nexus'];
-const suffixes = ['Corp', 'Inc', 'LLC', 'Holdings', 'Enterprises', 'Solutions', 'Group'];
-const businessTypes = ['Electronics', 'Fashion', 'Services', 'Technology', 'Healthcare', 'Restaurant'];
-const streets = ['Main', 'Oak', 'Maple', 'Cedar', 'Elm', 'Pine', 'Washington', 'Broadway'];
-const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'San Antonio', 'San Diego'];
-const states = ['NY', 'CA', 'IL', 'TX', 'AZ', 'PA', 'TX', 'CA'];
-
-const generateTestData = (): BusinessInfo => {
-  const companyName = companyNames[Math.floor(Math.random() * companyNames.length)];
-  const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
-  const businessType = businessTypes[Math.floor(Math.random() * businessTypes.length)];
-  const streetName = streets[Math.floor(Math.random() * streets.length)];
-  const cityIndex = Math.floor(Math.random() * cities.length);
-  const city = cities[cityIndex];
-  const state = states[cityIndex];
-  
-  return {
-    legalName: `${companyName} ${suffix}`,
-    tradingName: `${companyName} ${businessType}`,
-    registrationNumber: Math.random().toString().slice(2, 11),
-    taxId: `${Math.floor(Math.random() * 90) + 10}-${Math.floor(Math.random() * 9000000) + 1000000}`,
-    category: businessCategories[Math.floor(Math.random() * businessCategories.length)] as any,
-    subcategory: businessType,
-    yearEstablished: Math.floor(Math.random() * 20) + 2004,
-    monthlyVolume: Math.floor(Math.random() * 90000) + 10000,
-    website: `https://www.${companyName.toLowerCase()}-${businessType.toLowerCase()}.com`,
-    description: `Leading provider of ${businessType.toLowerCase()} products and services. We specialize in innovative solutions for modern businesses with a focus on quality and customer satisfaction.`,
-    businessAddress: {
-      street: `${Math.floor(Math.random() * 9000) + 1000} ${streetName} Street`,
-      city: city,
-      state: state,
-      postalCode: Math.floor(Math.random() * 90000 + 10000).toString(),
-      country: 'US',
-    },
-  };
-};
 
 const businessCategories = [
   'retail',
@@ -134,8 +97,8 @@ export function BusinessInfoStep({ initialData, onNext, onBack }: BusinessInfoSt
   };
 
   const handleAutofill = () => {
-    const testData = generateTestData();
-    setFormData(testData);
+    const testData = generateBusinessInfo();
+    setFormData(testData as BusinessInfo);
     setErrors({});
   };
 

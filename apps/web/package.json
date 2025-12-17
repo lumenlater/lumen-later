@@ -24,6 +24,7 @@
     "@creit.tech/stellar-wallets-kit": "^1.7.7",
     "@lumenlater/bnpl-core-client": "workspace:*",
     "@lumenlater/lp-token-client": "workspace:*",
+    "@lumenlater/shared": "workspace:*",
     "@lumenlater/usdc-token-client": "workspace:*",
     "@prisma/client": "^6.13.0",
     "@radix-ui/react-checkbox": "^1.3.2",

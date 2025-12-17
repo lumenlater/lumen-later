@@ -1,0 +1,33 @@
+{
+  "name": "@lumenlater/testnet-bot",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "lumen-bot": "./dist/bin/run.js",
+    "lumen-bot-bootstrap": "./dist/bin/bootstrap.js",
+    "lumen-bot-status": "./dist/bin/status.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/bin/run.js",
+    "bootstrap": "node dist/bin/bootstrap.js",
+    "status": "node dist/bin/status.js",
+    "run:once": "node dist/bin/run.js --once"
+  },
+  "dependencies": {
+    "@lumenlater/shared": "workspace:*",
+    "@lumenlater/bnpl-core-client": "workspace:*",
+    "@lumenlater/lp-token-client": "workspace:*",
+    "@lumenlater/usdc-token-client": "workspace:*",
+    "@stellar/stellar-sdk": "^13.1.0",
+    "dotenv": "^16.4.5",
+    "mongodb": "^6.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.4.0"
+  }
+}

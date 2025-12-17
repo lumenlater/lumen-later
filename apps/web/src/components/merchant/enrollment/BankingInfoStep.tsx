@@ -8,36 +8,13 @@ import { Label } from '@/components/ui/label';
 import { BankingInfo } from '@/types/merchant';
 import { ArrowLeft, ArrowRight, Shield, Info } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { generateBankingInfo } from '@lumenlater/shared';
 
 interface BankingInfoStepProps {
   initialData?: BankingInfo;
   onNext: (data: BankingInfo) => void;
   onBack: () => void;
 }
-
-// Test data generators
-const bankNames = ['Chase Bank', 'Bank of America', 'Wells Fargo', 'Citibank', 'US Bank', 'PNC Bank', 'Capital One', 'TD Bank'];
-const swiftCodes = ['CHASUS33', 'BOFAUS3N', 'WFBIUS6S', 'CITIUS33', 'USBKUS44', 'PNCCUS33', 'NFBKUS33', 'TDOMCATT'];
-
-const generateBankingTestData = (): BankingInfo => {
-  const bankIndex = Math.floor(Math.random() * bankNames.length);
-  const bankName = bankNames[bankIndex];
-  const swiftCode = swiftCodes[bankIndex];
-  
-  const companyName = ['Stellar Corp', 'Nova LLC', 'Quantum Inc', 'Phoenix Holdings'][Math.floor(Math.random() * 4)];
-  
-  // Generate realistic looking account and routing numbers
-  const accountNumber = Math.floor(Math.random() * 900000000000) + 100000000000;
-  const routingNumber = Math.floor(Math.random() * 900000000) + 100000000;
-  
-  return {
-    accountName: companyName,
-    accountNumber: accountNumber.toString().slice(0, 12),
-    routingNumber: routingNumber.toString(),
-    bankName: bankName,
-    swiftCode: swiftCode,
-  };
-};
 
 export function BankingInfoStep({ initialData, onNext, onBack }: BankingInfoStepProps) {
   const [bankingInfo, setBankingInfo] = useState<BankingInfo>(
@@ -132,8 +109,8 @@ export function BankingInfoStep({ initialData, onNext, onBack }: BankingInfoStep
   };
 
   const handleAutofill = () => {
-    const testData = generateBankingTestData();
-    setBankingInfo(testData);
+    const testData = generateBankingInfo();
+    setBankingInfo(testData as BankingInfo);
     setErrors({});
   };
 

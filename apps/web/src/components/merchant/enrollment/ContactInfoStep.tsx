@@ -8,41 +8,13 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ContactInfo, ContactPerson } from '@/types/merchant';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { generateContactInfo } from '@lumenlater/shared';
 
 interface ContactInfoStepProps {
   initialData?: ContactInfo;
   onNext: (data: ContactInfo) => void;
   onBack: () => void;
 }
-
-// Test data generators
-const firstNames = ['John', 'Sarah', 'Michael', 'Jennifer', 'Robert', 'Lisa', 'David', 'Maria'];
-const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis'];
-const titles = ['CEO', 'CTO', 'CFO', 'COO', 'President', 'Vice President', 'Director', 'Manager'];
-const domains = ['gmail.com', 'company.com', 'business.com', 'corp.com', 'enterprise.com'];
-
-const generateContactPerson = (type: string): ContactPerson => {
-  const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-  const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
-  const domain = domains[Math.floor(Math.random() * domains.length)];
-  
-  const titleIndex = Math.floor(Math.random() * titles.length);
-  let title = titles[titleIndex];
-  
-  if (type === 'technical') {
-    title = ['CTO', 'Technical Director', 'IT Manager', 'Engineering Manager'][Math.floor(Math.random() * 4)];
-  } else if (type === 'financial') {
-    title = ['CFO', 'Finance Director', 'Controller', 'Accounting Manager'][Math.floor(Math.random() * 4)];
-  }
-  
-  return {
-    firstName,
-    lastName,
-    title,
-    email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${domain}`,
-    phone: `+1 ${Math.floor(Math.random() * 900) + 100} ${Math.floor(Math.random() * 900) + 100} ${Math.floor(Math.random() * 9000) + 1000}`,
-  };
-};
 
 export function ContactInfoStep({ initialData, onNext, onBack }: ContactInfoStepProps) {
   const [contactInfo, setContactInfo] = useState<ContactInfo>(
@@ -241,12 +213,13 @@ export function ContactInfoStep({ initialData, onNext, onBack }: ContactInfoStep
   };
 
   const handleAutofill = () => {
+    const generated = generateContactInfo();
     const newContactInfo: ContactInfo = {
-      primaryContact: generateContactPerson('primary'),
-      technicalContact: generateContactPerson('technical'),
-      financialContact: generateContactPerson('financial'),
+      primaryContact: generated.primaryContact as ContactPerson,
+      technicalContact: generated.technicalContact as ContactPerson,
+      financialContact: generated.financialContact as ContactPerson,
     };
-    
+
     setContactInfo(newContactInfo);
     setHasTechnicalContact(true);
     setHasFinancialContact(true);

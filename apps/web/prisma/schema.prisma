@@ -308,3 +308,119 @@ model Bill {
   @@index([contractId, merchantAddress])
   @@map("bills")
 }
+
+// ============================================
+// Testnet Bot Models
+// ============================================
+
+// Bot state persistence
+model BotState {
+  id        String   @id @default("current") @map("_id")
+  updatedAt DateTime @updatedAt
+
+  // Running status
+  isRunning  Boolean   @default(false)
+  startedAt  DateTime?
+  stoppedAt  DateTime?
+
+  // Daily statistics (reset daily)
+  dailyStatsDate    String  // YYYY-MM-DD format
+  dailyTxCount      Int     @default(0)
+  dailySuccessCount Int     @default(0)
+  dailyFailureCount Int     @default(0)
+  dailyScenarios    Json    // { "scenario_name": count }
+
+  // Account pool state
+  accountPool Json // Full account pool state
+
+  // Goal progress snapshot
+  goalProgress Json // Current goal progress
+
+  @@map("bot_state")
+}
+
+// Bot activity log
+model BotActivity {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+
+  // Activity info
+  date      String   // YYYY-MM-DD for easy querying
+  scenario  String   // Scenario type executed
+  success   Boolean
+  details   Json?    // Scenario result details
+  error     String?  // Error message if failed
+
+  // Timing
+  duration  Int?     // Execution time in ms
+
+  @@index([date])
+  @@index([scenario])
+  @@index([success])
+  @@index([createdAt])
+  @@map("bot_activities")
+}
+
+// Bot accounts (managed by the bot)
+model BotAccount {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Account identification
+  name      String   @unique  // e.g., "merchant-1", "user-5"
+  address   String   @unique  // Stellar public key
+  type      BotAccountType
+
+  // State tracking
+  isActive       Boolean @default(true)
+  lastUsed       DateTime?
+
+  // For merchants
+  mongoId         String?   // MerchantApplication MongoDB ID
+  merchantStatus  String?   // pending, approved, rejected
+  billsCreated    Int       @default(0)
+
+  // For users
+  lpDeposited     Float     @default(0)  // LP tokens held
+  activeBills     Int[]     // Active bill IDs
+
+  @@index([type])
+  @@index([merchantStatus])
+  @@map("bot_accounts")
+}
+
+enum BotAccountType {
+  ADMIN
+  MERCHANT
+  USER
+}
+
+// Bot daily metrics aggregation
+model BotDailyMetrics {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+
+  // Date for the metrics
+  date      String   @unique  // YYYY-MM-DD
+
+  // Transaction counts
+  totalTx         Int @default(0)
+  successfulTx    Int @default(0)
+  failedTx        Int @default(0)
+
+  // Scenario breakdown
+  bootstrapCount    Int @default(0)
+  lpDepositCount    Int @default(0)
+  lpWithdrawCount   Int @default(0)
+  bnplCreateCount   Int @default(0)
+  bnplPayCount      Int @default(0)
+  bnplRepayCount    Int @default(0)
+
+  // Goal snapshots at end of day
+  endOfDayTvl           Float?
+  endOfDayMerchants     Int?
+  endOfDayUsers         Int?
+
+  @@map("bot_daily_metrics")
+}

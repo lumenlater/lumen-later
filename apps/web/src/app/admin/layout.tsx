@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWallet } from '@/hooks/web3/use-wallet';
-import { LayoutDashboard, Droplets, FileText, Store, Settings, Activity } from 'lucide-react';
+import { LayoutDashboard, Droplets, FileText, Store, Settings, Activity, Bot } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { isAdminWallet } from '@/config/admin';
@@ -80,6 +80,7 @@ export default function AdminLayout({
           <NavItem href="/admin/loans" icon={FileText} label="Loans" />
           <NavItem href="/admin/merchants" icon={Store} label="Merchants" />
           <NavItem href="/admin/activity" icon={Activity} label="Activity" />
+          <NavItem href="/admin/testbot" icon={Bot} label="Testnet Bot" />
           <NavItem href="/admin/settings" icon={Settings} label="Settings" />
         </nav>
       </aside>
