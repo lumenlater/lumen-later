@@ -24,7 +24,7 @@ import { config } from '../src/config/index.js';
 import { generateMerchantApplication } from '@lumenlater/shared';
 import { delay } from '../src/utils/delay.js';
 
-const MERCHANT_COUNT = 5;
+const MERCHANT_COUNT = 10;
 const USER_COUNT = 10;
 const INITIAL_TVL = 50000;
 const USDC_PER_USER = 10000;
@@ -133,8 +133,12 @@ async function step7_approveMerchants() {
     }
 
     if (merchant.mongoId) {
-      logger.info(`Approving ${merchant.name} in API...`);
-      await merchantApi.updateApplicationStatus(merchant.mongoId, 'APPROVED');
+      try {
+        logger.info(`Approving ${merchant.name} in API...`);
+        await merchantApi.updateApplicationStatus(merchant.mongoId, 'APPROVED');
+      } catch (error: any) {
+        logger.warn(`API update failed for ${merchant.name}, continuing with blockchain approval...`);
+      }
     }
 
     logger.info(`Approving ${merchant.name} on blockchain...`);
