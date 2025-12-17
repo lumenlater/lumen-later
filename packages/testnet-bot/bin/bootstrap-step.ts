@@ -27,7 +27,7 @@ import { delay } from '../src/utils/delay.js';
 const MERCHANT_COUNT = 5;
 const USER_COUNT = 10;
 const INITIAL_TVL = 50000;
-const USDC_PER_USER = 1000;
+const USDC_PER_USER = 10000;
 
 async function step1_ensureAccounts() {
   logger.header('Step 1: Ensure Accounts');

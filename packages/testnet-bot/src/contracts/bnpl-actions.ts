@@ -5,6 +5,8 @@
 import type { Client as BnplClient } from '@lumenlater/bnpl-core-client';
 import { logger } from '../utils/logger.js';
 import { createClients } from './client-factory.js';
+import { usdcActions } from './usdc-actions.js';
+import { config } from '../config/index.js';
 
 export interface EnrollMerchantParams {
   merchantAccountName: string;
@@ -117,10 +119,41 @@ export const bnplActions = {
 
   /**
    * Repay a bill
+   * Note: Requires USDC approval for the BNPL contract before calling
    */
   async repayBill(params: RepayBillParams): Promise<void> {
     const { userAccountName, billId } = params;
     const clients = createClients(userAccountName);
+
+    // Get bill details to know the repay amount
+    const billTx = await clients.bnpl.get_bill({ bill_id: billId });
+    const bill = billTx.result;
+
+    if (!bill) {
+      throw new Error(`Bill #${billId} not found`);
+    }
+
+    // Bill uses "principal" field for the amount
+    const repayAmount = bill.principal;
+
+    if (repayAmount <= 0n) {
+      logger.info(`Bill #${billId} has no amount to repay`);
+      return;
+    }
+
+    // Check bill status - should be "Paid" to repay
+    if (bill.status.tag === 'Repaid') {
+      logger.info(`Bill #${billId} already repaid`);
+      return;
+    }
+
+    // Approve BNPL contract to spend USDC on user's behalf
+    logger.info(`Approving BNPL contract to spend ${repayAmount} USDC for repayment...`);
+    await usdcActions.approve({
+      ownerAccountName: userAccountName,
+      spenderAddress: config.contracts.bnplCoreId,
+      amount: repayAmount,
+    });
 
     logger.tx('repay_bill', `Bill #${billId}`);
 

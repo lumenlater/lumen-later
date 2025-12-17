@@ -24,7 +24,7 @@ const DEFAULT_OPTIONS: BootstrapOptions = {
   merchantCount: 5,
   userCount: 10,
   initialTvl: 50000,
-  usdcPerUser: 1000,
+  usdcPerUser: 10000,
 };
 
 export class BootstrapScenario extends BaseScenario {

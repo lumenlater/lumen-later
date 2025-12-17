@@ -18,6 +18,13 @@ export interface TransferParams {
   amount: bigint;
 }
 
+export interface ApproveParams {
+  ownerAccountName: string;
+  spenderAddress: string;
+  amount: bigint;
+  expirationLedger?: number;
+}
+
 export const usdcActions = {
   /**
    * Mint USDC tokens (admin only)
@@ -55,6 +62,30 @@ export const usdcActions = {
 
     await tx.signAndSend();
     logger.success(`Transferred ${formatUsdc(amount)} USDC`);
+  },
+
+  /**
+   * Approve spender to spend USDC on behalf of owner
+   */
+  async approve(params: ApproveParams): Promise<void> {
+    const { ownerAccountName, spenderAddress, amount, expirationLedger } = params;
+    const clients = createClients(ownerAccountName);
+    const ownerAddress = stellarCli.getAddress(ownerAccountName);
+
+    // Default expiration: ~1 year from now (assuming ~5 sec per ledger)
+    const expiration = expirationLedger ?? Math.floor(Date.now() / 1000 / 5) + 6_307_200;
+
+    logger.tx('usdc_approve', `${formatUsdc(amount)} to ${spenderAddress.slice(0, 8)}...`);
+
+    const tx = await clients.usdc.approve({
+      from: ownerAddress,
+      spender: spenderAddress,
+      amount,
+      expiration_ledger: expiration,
+    });
+
+    await tx.signAndSend();
+    logger.success(`Approved ${formatUsdc(amount)} USDC for spender`);
   },
 
   /**
