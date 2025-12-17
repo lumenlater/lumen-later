@@ -7,7 +7,29 @@ import { BillStatus } from '@prisma/client-postgres';
  *
  * Goldsky handler endpoint - processes contract events and saves to parsed tables.
  * Receives events from Goldsky pipeline handler transform.
+ *
+ * Security: Validates X-Goldsky-Secret header against GOLDSKY_WEBHOOK_SECRET env var.
  */
+
+const WEBHOOK_SECRET = process.env.GOLDSKY_WEBHOOK_SECRET;
+
+/**
+ * Validate webhook secret from Goldsky
+ */
+function validateWebhookSecret(request: NextRequest): boolean {
+  if (!WEBHOOK_SECRET) {
+    console.warn('[Webhook] GOLDSKY_WEBHOOK_SECRET not configured - skipping validation');
+    return true; // Allow in development without secret
+  }
+
+  const secret = request.headers.get('x-goldsky-secret');
+  if (!secret || secret !== WEBHOOK_SECRET) {
+    console.error('[Webhook] Invalid or missing webhook secret');
+    return false;
+  }
+
+  return true;
+}
 
 // Event type symbols from contract
 const EVENT_TYPES = {
@@ -287,6 +309,14 @@ async function processEvent(event: GoldskyEvent): Promise<{ processed: boolean; 
 }
 
 export async function POST(request: NextRequest) {
+  // Validate webhook secret
+  if (!validateWebhookSecret(request)) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401 }
+    );
+  }
+
   try {
     const body = await request.json();
 
