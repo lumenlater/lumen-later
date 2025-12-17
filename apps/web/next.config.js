@@ -3,6 +3,10 @@ const webpack = require('webpack');
 
 const nextConfig = {
   transpilePackages: ['@lumenlater/sdk'],
+  // Include Prisma engine files for Vercel deployment
+  outputFileTracingIncludes: {
+    '/api/**/*': ['./node_modules/@prisma/client-postgres/**/*'],
+  },
   eslint: {
     // Disable ESLint during production builds
     ignoreDuringBuilds: true,

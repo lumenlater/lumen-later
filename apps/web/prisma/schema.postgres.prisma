@@ -7,8 +7,9 @@
 // Push schema: npx prisma db push --schema=prisma/schema.postgres.prisma
 
 generator client {
-  provider = "prisma-client-js"
-  output   = "../node_modules/@prisma/client-postgres"
+  provider      = "prisma-client-js"
+  output        = "../node_modules/@prisma/client-postgres"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
