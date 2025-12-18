@@ -3,16 +3,29 @@
 **Date**: December 18, 2025
 **Network**: Stellar Testnet
 **Total Tests**: 47 tests (all passing)
+**Tool**: cargo-tarpaulin v0.34.1
 
 ## Summary
 
-| Contract | Tests | Status | Estimated Coverage |
-|----------|-------|--------|-------------------|
-| bnpl_core | 12 | ✅ Pass | ~90% |
-| lp_token | 24 | ✅ Pass | ~95% |
-| usdc_token | 7 | ✅ Pass | ~85% |
-| integration_test | 4 | ✅ Pass | - |
-| **Total** | **47** | **✅ All Pass** | **~90%** |
+### Line Coverage (cargo-tarpaulin)
+
+| File | Lines Covered | Total Lines | Coverage |
+|------|---------------|-------------|----------|
+| bnpl_core/src/lib.rs | 207 | 234 | 88.5% |
+| bnpl_core/src/storage.rs | 22 | 26 | 84.6% |
+| lp_token/src/lib.rs | 267 | 272 | **98.2%** |
+| usdc_token/src/lib.rs | 115 | 152 | 75.7% |
+| **Total** | **611** | **684** | **89.33%** |
+
+### Test Summary
+
+| Contract | Tests | Status |
+|----------|-------|--------|
+| bnpl_core | 12 | ✅ Pass |
+| lp_token | 24 | ✅ Pass |
+| usdc_token | 7 | ✅ Pass |
+| integration_test | 4 | ✅ Pass |
+| **Total** | **47** | **✅ All Pass** |
 
 ## BNPL Core Contract (12 tests)
 
