@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Store, Plus, Eye, DollarSign, FileText, CheckCircle, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Store, Plus, Eye, DollarSign, FileText, CheckCircle, TrendingUp, Settings, Key } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState, useMemo } from 'react';
@@ -160,14 +160,22 @@ export default function MerchantPage() {
 
   return (
     <>
-        <Button 
-          variant="outline" 
-          onClick={() => router.push('/')}
-          className="mb-6"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
+        <div className="flex justify-between items-center mb-6">
+          <Button
+            variant="outline"
+            onClick={() => router.push('/')}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => router.push('/merchant/settings/api-keys')}
+          >
+            <Key className="h-4 w-4 mr-2" />
+            API Keys
+          </Button>
+        </div>
 
         <h1 className="text-3xl font-bold mb-2">Merchant Dashboard</h1>
         <p className="text-gray-600 mb-8">Create and manage Lumen Later bills for your customers</p>

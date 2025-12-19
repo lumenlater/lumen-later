@@ -43,9 +43,10 @@ Redirect-based checkout flow for merchant integration, similar to Stripe Checkou
 - [x] Retry logic for failed webhooks (3 attempts with backoff)
 
 ### Phase 6: Merchant Dashboard UI
-- [ ] API Keys management page
-- [ ] Webhook URL configuration
-- [ ] Integration guide/docs
+- [x] API Keys management page (/merchant/settings/api-keys)
+- [x] API key create, list, revoke functionality
+- [x] Integration guide with code examples
+- [x] Link from merchant dashboard
 
 ---
 
