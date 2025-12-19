@@ -104,21 +104,35 @@ export async function verifyApiKey(apiKey: string): Promise<{
 
   // Verify JWT
   const payload = await verifyApiKeyJwt(jwt);
+  console.log('JWT verification result:', payload ? 'valid' : 'invalid');
   if (!payload) {
     return { valid: false, error: 'Invalid or expired API key' };
   }
 
   // Check database record
   const keyHash = hashApiKey(apiKey);
-  const record = await prisma.merchantApiKey.findFirst({
-    where: {
-      keyHash,
-      revokedAt: null,
-    },
+  console.log('Looking for keyHash:', keyHash.substring(0, 20) + '...');
+
+  // Find by key ID from JWT (more reliable than hash lookup)
+  const record = await prisma.merchantApiKey.findUnique({
+    where: { id: payload.kid },
   });
 
+  console.log('Database record found:', record ? record.id : 'null');
+
   if (!record) {
-    return { valid: false, error: 'API key not found or revoked' };
+    return { valid: false, error: 'API key not found' };
+  }
+
+  // Verify hash matches
+  if (record.keyHash !== keyHash) {
+    console.log('Hash mismatch:', { stored: record.keyHash.substring(0, 20), computed: keyHash.substring(0, 20) });
+    return { valid: false, error: 'API key invalid' };
+  }
+
+  // Check if revoked
+  if (record.revokedAt) {
+    return { valid: false, error: 'API key has been revoked' };
   }
 
   // Check expiration

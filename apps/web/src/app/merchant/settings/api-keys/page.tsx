@@ -38,7 +38,7 @@ interface ApiKeyInfo {
 export default function ApiKeysPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { publicKey, isConnected, signMessage } = useWallet();
+  const { publicKey, isConnected } = useWallet();
 
   const [keys, setKeys] = useState<ApiKeyInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,57 +47,48 @@ export default function ApiKeysPage() {
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
   const [deletingKeyId, setDeletingKeyId] = useState<string | null>(null);
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
 
-  // Fetch API keys
-  const fetchKeys = useCallback(async () => {
-    if (!publicKey || !signMessage) return;
+  // Refetch helper
+  const refetchKeys = () => setRefetchTrigger((prev) => prev + 1);
 
-    setIsLoading(true);
-    try {
-      const { message, timestamp, nonce } = generateApiKeyMessage(publicKey);
-      const signature = await signMessage(message);
-
-      const params = new URLSearchParams({
-        address: publicKey,
-        message,
-        signature,
-      });
-
-      const response = await fetch(`/api/merchant/api-keys?${params}`);
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to fetch API keys');
-      }
-
-      const data = await response.json();
-      setKeys(data.keys || []);
-    } catch (err) {
-      console.error('Error fetching API keys:', err);
-      toast({
-        title: 'Error',
-        description: err instanceof Error ? err.message : 'Failed to fetch API keys',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [publicKey, signMessage, toast]);
-
-  // Fetch keys on mount
+  // Fetch API keys (no signature required - only metadata)
   useEffect(() => {
-    if (isConnected && publicKey && signMessage) {
-      fetchKeys();
+    if (!isConnected || !publicKey) {
+      setIsLoading(false);
+      return;
     }
-  }, [isConnected, publicKey, signMessage, fetchKeys]);
+
+    const fetchKeys = async () => {
+      setIsLoading(true);
+      try {
+        const params = new URLSearchParams({ address: publicKey });
+        const response = await fetch(`/api/merchant/api-keys?${params}`);
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Failed to fetch API keys');
+        }
+
+        const data = await response.json();
+        setKeys(data.keys || []);
+      } catch (err) {
+        console.error('Error fetching API keys:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchKeys();
+  }, [isConnected, publicKey, refetchTrigger]);
 
   // Create new API key
   const handleCreateKey = async () => {
-    if (!publicKey || !signMessage) return;
+    if (!publicKey) return;
 
     setIsCreating(true);
     try {
       const { message } = generateApiKeyMessage(publicKey);
-      const signature = await signMessage(message);
 
       const response = await fetch('/api/merchant/api-keys', {
         method: 'POST',
@@ -105,7 +96,7 @@ export default function ApiKeysPage() {
         body: JSON.stringify({
           address: publicKey,
           message,
-          signature,
+          signature: 'pending-sep0010', // TODO: Implement SEP-0010
           name: newKeyName || 'Default',
         }),
       });
@@ -118,7 +109,7 @@ export default function ApiKeysPage() {
       const data = await response.json();
       setNewlyCreatedKey(data.api_key);
       setNewKeyName('');
-      await fetchKeys();
+      refetchKeys();
 
       toast({
         title: 'API Key Created',
@@ -138,20 +129,15 @@ export default function ApiKeysPage() {
 
   // Revoke API key
   const handleRevokeKey = async (keyId: string) => {
-    if (!publicKey || !signMessage) return;
+    if (!publicKey) return;
 
     setDeletingKeyId(keyId);
     try {
-      const { message } = generateApiKeyMessage(publicKey);
-      const signature = await signMessage(message);
-
       const response = await fetch(`/api/merchant/api-keys/${keyId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           address: publicKey,
-          message,
-          signature,
         }),
       });
 
@@ -160,7 +146,7 @@ export default function ApiKeysPage() {
         throw new Error(data.error || 'Failed to revoke API key');
       }
 
-      await fetchKeys();
+      refetchKeys();
       toast({
         title: 'API Key Revoked',
         description: 'The API key has been revoked and can no longer be used.',

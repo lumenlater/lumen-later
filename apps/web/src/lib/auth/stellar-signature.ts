@@ -1,4 +1,4 @@
-import { Keypair } from '@stellar/stellar-sdk';
+import { Keypair, hash } from '@stellar/stellar-sdk';
 
 /**
  * Message format for API key issuance
@@ -43,19 +43,73 @@ export function generateApiKeyMessage(address: string): {
 
 /**
  * Verify a Stellar signature
+ * Handles different signature formats from various wallets
  */
 export function verifyStellarSignature(
   publicKey: string,
   message: string,
-  signatureBase64: string
+  signature: string
 ): boolean {
   try {
     const keypair = Keypair.fromPublicKey(publicKey);
     const messageBuffer = Buffer.from(message, 'utf-8');
-    const signatureBuffer = Buffer.from(signatureBase64, 'base64');
 
-    return keypair.verify(messageBuffer, signatureBuffer);
-  } catch {
+    // Try different signature formats
+    // 1. Direct base64 (64 bytes = ed25519 signature)
+    try {
+      const signatureBuffer = Buffer.from(signature, 'base64');
+      if (signatureBuffer.length === 64 && keypair.verify(messageBuffer, signatureBuffer)) {
+        return true;
+      }
+    } catch {}
+
+    // 2. Double base64 (Stellar Wallets Kit returns base64, then we might encode again)
+    try {
+      const firstDecode = Buffer.from(signature, 'base64').toString('utf-8');
+      const signatureBuffer = Buffer.from(firstDecode, 'base64');
+      if (signatureBuffer.length === 64) {
+        // Try raw message
+        if (keypair.verify(messageBuffer, signatureBuffer)) {
+          console.log('Verified with double base64 + raw message');
+          return true;
+        }
+        // Try hashed message (SHA256)
+        const hashedMessage = hash(messageBuffer);
+        if (keypair.verify(hashedMessage, signatureBuffer)) {
+          console.log('Verified with double base64 + hashed message');
+          return true;
+        }
+      }
+    } catch (e) {
+      console.log('Double base64 decode error:', e);
+    }
+
+    // 3. Hex encoded
+    try {
+      const signatureBuffer = Buffer.from(signature, 'hex');
+      if (signatureBuffer.length === 64 && keypair.verify(messageBuffer, signatureBuffer)) {
+        return true;
+      }
+    } catch {}
+
+    // 4. Raw string is base64 (no outer encoding)
+    try {
+      const signatureBuffer = Buffer.from(signature, 'base64');
+      // Check if it decodes to valid base64 string
+      const decoded = signatureBuffer.toString('utf-8');
+      if (/^[A-Za-z0-9+/=]+$/.test(decoded)) {
+        const finalBuffer = Buffer.from(decoded, 'base64');
+        if (finalBuffer.length === 64 && keypair.verify(messageBuffer, finalBuffer)) {
+          console.log('Signature verified with nested base64');
+          return true;
+        }
+      }
+    } catch {}
+
+    console.log('Signature verification failed for all formats');
+    return false;
+  } catch (err) {
+    console.error('Signature verification error:', err);
     return false;
   }
 }

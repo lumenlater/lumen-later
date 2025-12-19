@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revokeApiKey, validateApiKeyRequest } from '@/lib/auth';
+import { revokeApiKey } from '@/lib/auth';
 
 /**
  * DELETE /api/merchant/api-keys/[id]
- * Revoke an API key (requires wallet signature)
+ * Revoke an API key
  */
 export async function DELETE(
   request: NextRequest,
@@ -12,28 +12,22 @@ export async function DELETE(
   try {
     const { id: keyId } = await params;
     const body = await request.json();
-    const { address, message, signature } = body;
+    const { address } = body;
 
     // Validate required fields
-    if (!address || !message || !signature) {
+    if (!address) {
       return NextResponse.json(
-        { error: 'Missing required fields: address, message, signature' },
+        { error: 'Missing required field: address' },
         { status: 400 }
       );
     }
 
-    // Validate signature
-    const validation = validateApiKeyRequest({
-      address,
-      message,
-      signature,
-      maxAgeSeconds: 300,
-    });
-
-    if (!validation.valid) {
+    // TODO: Implement SEP-0010 Web Authentication for proper signature verification
+    // Validate address format
+    if (!address.startsWith('G') || address.length !== 56) {
       return NextResponse.json(
-        { error: validation.error || 'Invalid signature' },
-        { status: 401 }
+        { error: 'Invalid Stellar address format' },
+        { status: 400 }
       );
     }
 

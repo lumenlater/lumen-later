@@ -18,6 +18,7 @@ interface WalletState {
   connect: () => Promise<void>;
   disconnect: () => void;
   signTransaction: (xdr: string) => Promise<{signedTxXdr: string, signerAddress: string}>;
+  signMessage: (message: string) => Promise<string>;
   isLoading: boolean;
   error: string | null;
   checkConnection: () => Promise<void>;
@@ -182,7 +183,46 @@ export const useWallet = create<WalletState>((set, get) => ({
       throw new Error(ErrorMessages.TRANSACTION_FAILED);
     }
   },
-  
+
+  signMessage: async (message: string): Promise<string> => {
+    const state = get();
+
+    if (!state.isConnected || !state.publicKey) {
+      throw new Error(ErrorMessages.WALLET_NOT_CONNECTED);
+    }
+
+    if (!message) {
+      throw new Error('Message is required');
+    }
+
+    try {
+      const kit = getWalletKit();
+
+      // Sign the message using the wallet kit
+      const { signedMessage } = await kit.signMessage(message, {
+        address: state.publicKey,
+      });
+
+      if (!signedMessage) {
+        throw new Error('Failed to receive signed message');
+      }
+
+      return signedMessage;
+    } catch (error) {
+      if (Config.IS_DEVELOPMENT) {
+        console.error('Message signing error:', error);
+      }
+
+      if (error instanceof Error) {
+        if (error.message.includes('User declined') || error.message.includes('cancelled')) {
+          throw new Error(ErrorMessages.TRANSACTION_REJECTED);
+        }
+      }
+
+      throw new Error('Failed to sign message');
+    }
+  },
+
   checkConnection: async () => {
     try {
       // Check if we have a stored wallet ID
