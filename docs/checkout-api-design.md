@@ -30,10 +30,12 @@ Redirect-based checkout flow for merchant integration, similar to Stripe Checkou
 - [x] Session management utilities (create, complete, cancel)
 
 ### Phase 4: Payment Page
-- [ ] /pay/[sessionId] - User-facing payment page
-- [ ] Wallet connection flow
-- [ ] Bill creation on-chain
-- [ ] Success/Cancel redirect handling
+- [x] /pay/[sessionId] - User-facing payment page
+- [x] Wallet connection flow
+- [x] Bill creation on-chain
+- [x] Success/Cancel redirect handling
+- [x] GET /api/pay/[sessionId] - Public session info API
+- [x] POST /api/pay/[sessionId]/complete - Complete session API
 
 ### Phase 5: Webhook
 - [ ] Webhook dispatch on payment completion
