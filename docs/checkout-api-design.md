@@ -25,8 +25,9 @@ Redirect-based checkout flow for merchant integration, similar to Stripe Checkou
 - [x] Middleware for API key authentication
 
 ### Phase 3: Checkout Session
-- [ ] POST /api/checkout/sessions - Create session
-- [ ] GET /api/checkout/sessions/[id] - Get session status
+- [x] POST /api/checkout/sessions - Create session
+- [x] GET /api/checkout/sessions/[id] - Get session status
+- [x] Session management utilities (create, complete, cancel)
 
 ### Phase 4: Payment Page
 - [ ] /pay/[sessionId] - User-facing payment page
