@@ -3,7 +3,7 @@ import {
   networks,
   Bill,
 } from "@lumenlater/bnpl-core-client";
-import { Keypair, TransactionBuilder, SorobanRpc } from "@stellar/stellar-sdk";
+import { Keypair, TransactionBuilder } from "@stellar/stellar-sdk";
 
 const STROOPS_MULTIPLIER = 10_000_000;
 
@@ -54,8 +54,17 @@ export interface CheckoutSession {
   id: string;
   url: string;
   billId: string;
-  status: "PENDING" | "COMPLETED" | "EXPIRED" | "CANCELLED";
+  status: "pending" | "completed" | "expired" | "cancelled";
   expiresAt: string;
+}
+
+// API response format (snake_case)
+interface CheckoutSessionApiResponse {
+  id: string;
+  checkout_url: string;
+  bill_id: string;
+  status: "pending" | "completed" | "expired" | "cancelled";
+  expires_at: string;
 }
 
 export interface CreateBillResult {
@@ -115,17 +124,15 @@ export class LumenLater {
       config.apiBaseUrl || "https://app.lumenlater.com/api/v1";
     this.apiKey = config.apiKey;
 
-    const rpc = new SorobanRpc.Server(this.rpcUrl);
-
     this.client = new BnplClient({
       contractId: config.contractId || networks.testnet.contractId,
       networkPassphrase: this.networkPassphrase,
       rpcUrl: this.rpcUrl,
       publicKey: this.keypair.publicKey(),
-      signTransaction: async (xdr) => {
+      signTransaction: async (xdr: string) => {
         const tx = TransactionBuilder.fromXDR(xdr, this.networkPassphrase);
         tx.sign(this.keypair);
-        return tx.toXDR();
+        return { signedTxXdr: tx.toXDR() };
       },
     });
   }
@@ -201,26 +208,34 @@ export class LumenLater {
           Authorization: `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify({
-          billId: params.billId,
+          bill_id: params.billId,
           amount: params.amount,
-          orderId: params.orderId,
+          order_id: params.orderId,
           description: params.description,
-          successUrl: params.successUrl,
-          cancelUrl: params.cancelUrl,
-          webhookUrl: params.webhookUrl,
+          success_url: params.successUrl,
+          cancel_url: params.cancelUrl,
+          webhook_url: params.webhookUrl,
           metadata: params.metadata,
         }),
       }
     );
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
+      const errorBody = await response.json().catch(() => ({})) as { message?: string };
       throw new Error(
-        `Failed to create checkout session: ${error.message || response.statusText}`
+        `Failed to create checkout session: ${errorBody.message || response.statusText}`
       );
     }
 
-    return response.json();
+    // Transform snake_case API response to camelCase
+    const apiResponse = await response.json() as CheckoutSessionApiResponse;
+    return {
+      id: apiResponse.id,
+      url: apiResponse.checkout_url,
+      billId: apiResponse.bill_id,
+      status: apiResponse.status,
+      expiresAt: apiResponse.expires_at,
+    };
   }
 }
 

@@ -38,10 +38,11 @@ export async function POST(request: NextRequest) {
     const validation = createSessionSchema.safeParse(body);
 
     if (!validation.success) {
+      const errors = validation.error.issues || validation.error.errors || [];
       return NextResponse.json(
         {
           error: 'Invalid request',
-          details: validation.error.errors.map((e) => ({
+          details: errors.map((e: { path: (string | number)[]; message: string }) => ({
             field: e.path.join('.'),
             message: e.message,
           })),
