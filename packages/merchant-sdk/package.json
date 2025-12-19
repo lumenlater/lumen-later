@@ -1,0 +1,21 @@
+{
+  "name": "@lumenlater/merchant-sdk",
+  "version": "0.1.0",
+  "description": "Server-side SDK for LumenLater merchants to create bills and checkout sessions",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@lumenlater/bnpl-core-client": "workspace:*",
+    "@stellar/stellar-sdk": "^13.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist"
+  ]
+}

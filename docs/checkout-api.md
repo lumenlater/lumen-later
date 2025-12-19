@@ -28,11 +28,69 @@ Authorization: Bearer ll_live_xxxxx...
 ## Checkout Flow
 
 ```
-1. Merchant creates a checkout session via API
-2. User is redirected to LumenLater payment page
-3. User connects wallet and confirms BNPL payment
-4. User is redirected to merchant's success_url
-5. (Optional) Webhook notification sent to merchant
+1. Merchant creates a bill on-chain using the SDK (signs with their Stellar key)
+2. Merchant creates a checkout session via API (includes bill_id)
+3. User is redirected to LumenLater payment page
+4. User connects wallet and confirms BNPL payment
+5. User is redirected to merchant's success_url
+6. (Optional) Webhook notification sent to merchant
+```
+
+## Merchant SDK
+
+Use the `@lumenlater/merchant-sdk` package to create bills from your server:
+
+```bash
+npm install @lumenlater/merchant-sdk
+```
+
+### Configuration
+
+```typescript
+import { LumenLater } from "@lumenlater/merchant-sdk";
+
+const ll = new LumenLater({
+  // Required
+  secretKey: "S...",           // Your Stellar secret key for signing transactions
+  apiKey: "ll_live_...",       // Your LumenLater API key
+
+  // Optional (defaults shown)
+  apiBaseUrl: "https://app.lumenlater.com/api/v1",  // API endpoint
+  rpcUrl: "https://soroban-testnet.stellar.org",    // Stellar RPC server
+  networkPassphrase: "Test SDF Network ; September 2015",  // Network
+  contractId: "CCMOEB24IIKXH5VEFXPFRELRT4M62RKMZVL6YTA2QAEZ44FGNTWORT3K",  // BNPL contract
+});
+```
+
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `secretKey` | Yes | - | Stellar secret key for signing on-chain transactions |
+| `apiKey` | Yes | - | LumenLater API key (`ll_live_...` or `ll_test_...`) |
+| `apiBaseUrl` | No | `https://app.lumenlater.com/api/v1` | LumenLater API endpoint |
+| `rpcUrl` | No | `https://soroban-testnet.stellar.org` | Stellar Soroban RPC URL |
+| `networkPassphrase` | No | Testnet passphrase | Stellar network passphrase |
+| `contractId` | No | Testnet contract | BNPL contract ID |
+
+### Usage
+
+```typescript
+// Step 1: Create a bill on-chain
+const { billId, txHash } = await ll.createBill({
+  userAddress: "G...", // Customer's Stellar address (from checkout form)
+  amount: 100.00, // USDC amount
+  orderId: "order-123",
+});
+
+// Step 2: Create a checkout session
+const session = await ll.createCheckoutSession({
+  billId,
+  amount: 100.00,
+  orderId: "order-123",
+  successUrl: "https://your-site.com/success?session_id={SESSION_ID}",
+  cancelUrl: "https://your-site.com/cancel",
+});
+
+// Redirect user to session.url
 ```
 
 ## API Reference
@@ -52,6 +110,7 @@ Content-Type: application/json
 **Request Body:**
 ```json
 {
+  "bill_id": "123",
   "amount": 10000000,
   "order_id": "order_123",
   "description": "Product purchase",
@@ -66,6 +125,7 @@ Content-Type: application/json
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
+| `bill_id` | string | Yes | On-chain bill ID created by the merchant |
 | `amount` | number | Yes | Amount in stroops (7 decimal places). 10000000 = $1.00 |
 | `order_id` | string | No | Your internal order reference |
 | `description` | string | No | Description shown to customer |
@@ -79,6 +139,7 @@ Content-Type: application/json
 {
   "id": "cs_clxxxxxxxxx",
   "checkout_url": "https://lumenlater.com/pay/cs_clxxxxxxxxx",
+  "bill_id": "123",
   "amount": 10000000,
   "order_id": "order_123",
   "status": "pending",
@@ -205,32 +266,37 @@ Failed webhook deliveries are retried up to 3 times:
 
 ```javascript
 const express = require('express');
+const { LumenLater } = require('@lumenlater/merchant-sdk');
 const app = express();
 
-const LUMENLATER_API_KEY = 'll_live_xxxxx';
-const LUMENLATER_API_URL = 'https://lumenlater.com/api';
+// Initialize the SDK with your credentials
+const ll = new LumenLater({
+  secretKey: process.env.STELLAR_SECRET_KEY, // Your Stellar signing key
+  apiKey: process.env.LUMENLATER_API_KEY,    // "ll_live_xxxxx"
+});
 
 // Create checkout session
 app.post('/create-checkout', async (req, res) => {
-  const { amount, orderId } = req.body;
+  const { amount, orderId, userAddress } = req.body;
 
-  const response = await fetch(`${LUMENLATER_API_URL}/checkout/sessions`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${LUMENLATER_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      amount: amount * 10000000, // Convert to stroops
-      order_id: orderId,
-      success_url: `${process.env.BASE_URL}/success?session_id={SESSION_ID}`,
-      cancel_url: `${process.env.BASE_URL}/cancel`,
-      webhook_url: `${process.env.BASE_URL}/webhooks/lumenlater`,
-    }),
+  // Step 1: Create bill on-chain (requires merchant signature)
+  const { billId } = await ll.createBill({
+    userAddress,
+    amount,
+    orderId,
   });
 
-  const session = await response.json();
-  res.json({ checkoutUrl: session.checkout_url });
+  // Step 2: Create checkout session with bill ID
+  const session = await ll.createCheckoutSession({
+    billId,
+    amount,
+    orderId,
+    successUrl: `${process.env.BASE_URL}/success?session_id={SESSION_ID}`,
+    cancelUrl: `${process.env.BASE_URL}/cancel`,
+    webhookUrl: `${process.env.BASE_URL}/webhooks/lumenlater`,
+  });
+
+  res.json({ checkoutUrl: session.url });
 });
 
 // Success page
@@ -307,3 +373,14 @@ When customers pay with LumenLater BNPL:
 - 111% collateralization required
 - No upfront payment required
 - Merchant receives immediate payment (minus 1.5% fee)
+
+## Future Improvements (TODO)
+
+### SEP-0010 Web Authentication
+Implement proper Stellar authentication using challenge transactions:
+- [ ] Server creates challenge transaction (ManageData operation with random nonce)
+- [ ] Client signs the challenge transaction
+- [ ] Server verifies signature using `verifyChallengeTxSigners`
+- [ ] Server issues session JWT after successful verification
+- [ ] Reference: https://stellar.github.io/js-stellar-sdk/global.html#verifyChallengeTxSigners
+- [ ] SEP-0010 spec: https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0010.md

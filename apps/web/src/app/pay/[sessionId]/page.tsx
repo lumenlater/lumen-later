@@ -18,7 +18,10 @@ import {
 } from 'lucide-react';
 import { useWallet } from '@/hooks/web3/use-wallet';
 import { useBnplBill } from '@/hooks/web3/use-bnpl-bill';
+import { useUsdcToken } from '@/hooks/web3/use-usdc-token';
 import { replaceSessionIdPlaceholder } from '@/lib/checkout/session';
+import CONTRACT_IDS from '@/config/contracts';
+import { Config } from '@/constants/config';
 
 interface CheckoutSessionInfo {
   id: string;
@@ -50,8 +53,10 @@ export default function PayPage({
   const { toast } = useToast();
   const { publicKey, isConnected, connect } = useWallet();
   const { payBill, isLoading: isPayingBill } = useBnplBill();
+  const { getAllowance, approve, isLoading: isApprovingUsdc } = useUsdcToken();
 
   const [session, setSession] = useState<CheckoutSessionInfo | null>(null);
+  const [paymentStep, setPaymentStep] = useState<'idle' | 'approving' | 'paying'>('idle');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPaying, setIsPaying] = useState(false);
@@ -81,21 +86,66 @@ export default function PayPage({
   const handlePay = async () => {
     if (!session || !publicKey) return;
 
+    // Ensure we have a bill ID from the merchant
+    if (!session.bill_id) {
+      toast({
+        title: 'Payment Error',
+        description: 'This checkout session does not have a valid bill. Please contact the merchant.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsPaying(true);
     try {
-      // Create bill and pay with BNPL
-      // Note: This creates a bill on-chain where the user is the borrower
-      const billId = await payBill(sessionId);
+      // Collateral required: 111% of amount (in stroops)
+      const collateralAmount = BigInt(Math.floor(session.amount * 1.11));
 
-      // Update session status via API
-      await fetch(`/api/pay/${sessionId}/complete`, {
+      // Step 1: Check and approve USDC for BNPL contract (for collateral)
+      setPaymentStep('approving');
+      console.log('Checking USDC allowance for BNPL contract...');
+
+      const currentAllowance = await getAllowance(CONTRACT_IDS.BNPL_CORE);
+      console.log('Current allowance:', currentAllowance.toString(), 'Required:', collateralAmount.toString());
+
+      if (currentAllowance < collateralAmount) {
+        toast({
+          title: 'Step 1/2: Approving USDC',
+          description: 'Please approve USDC for collateral...',
+        });
+
+        // Approve with 10% extra buffer
+        const approveAmount = BigInt(Math.floor(session.amount * 1.22)); // 111% * 110% = ~122%
+        await approve(CONTRACT_IDS.BNPL_CORE, (Number(approveAmount) / 1e7).toString());
+        console.log('USDC approved');
+      }
+
+      // Step 2: Pay the existing bill created by the merchant
+      setPaymentStep('paying');
+      toast({
+        title: 'Step 2/2: Processing Payment',
+        description: 'Paying bill with BNPL...',
+      });
+
+      console.log('Paying bill:', session.bill_id);
+
+      await payBill(session.bill_id);
+
+      console.log('Payment completed, bill ID:', session.bill_id);
+
+      // Step 3: Update session status via API
+      const completeResponse = await fetch(`/api/pay/${sessionId}/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          billId,
+          billId: session.bill_id,
           userAddress: publicKey,
         }),
       });
+
+      if (!completeResponse.ok) {
+        console.warn('Failed to update session status, but payment succeeded');
+      }
 
       toast({
         title: 'Payment Successful!',
@@ -114,6 +164,7 @@ export default function PayPage({
       });
     } finally {
       setIsPaying(false);
+      setPaymentStep('idle');
     }
   };
 
@@ -308,12 +359,14 @@ export default function PayPage({
                   className="w-full"
                   size="lg"
                   onClick={handlePay}
-                  disabled={isPaying || isPayingBill || !session.can_pay}
+                  disabled={isPaying || isPayingBill || isApprovingUsdc || !session.can_pay}
                 >
-                  {isPaying || isPayingBill ? (
+                  {isPaying || isPayingBill || isApprovingUsdc ? (
                     <>
                       <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Processing...
+                      {paymentStep === 'approving' && 'Approving USDC...'}
+                      {paymentStep === 'paying' && 'Processing Payment...'}
+                      {paymentStep === 'idle' && 'Processing...'}
                     </>
                   ) : (
                     <>
@@ -326,7 +379,7 @@ export default function PayPage({
                   variant="outline"
                   className="w-full"
                   onClick={handleCancel}
-                  disabled={isPaying || isPayingBill}
+                  disabled={isPaying || isPayingBill || isApprovingUsdc}
                 >
                   Cancel
                 </Button>

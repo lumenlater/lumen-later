@@ -7,6 +7,8 @@ const SESSION_ID_PREFIX = 'cs_';
 
 export interface CreateSessionParams {
   merchantId: string;
+  /** On-chain bill ID created by merchant */
+  billId: string;
   amount: number;
   orderId?: string;
   description?: string;
@@ -50,6 +52,7 @@ export async function createCheckoutSession(
 ): Promise<CheckoutSessionData> {
   const {
     merchantId,
+    billId,
     amount,
     orderId,
     description,
@@ -67,6 +70,7 @@ export async function createCheckoutSession(
     data: {
       id: generateSessionId(),
       merchantId,
+      billId,
       amount,
       orderId,
       description,

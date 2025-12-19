@@ -8,6 +8,7 @@ import {
 
 // Request validation schema
 const createSessionSchema = z.object({
+  bill_id: z.string().min(1, 'Bill ID is required'),
   amount: z.number().positive('Amount must be positive'),
   order_id: z.string().optional(),
   description: z.string().optional(),
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
     }
 
     const {
+      bill_id,
       amount,
       order_id,
       description,
@@ -62,6 +64,7 @@ export async function POST(request: NextRequest) {
     // Create checkout session
     const session = await createCheckoutSession({
       merchantId,
+      billId: bill_id,
       amount,
       orderId: order_id,
       description,
@@ -74,6 +77,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       id: session.id,
       checkout_url: getCheckoutUrl(session.id),
+      bill_id: session.billId,
       amount: session.amount,
       order_id: session.orderId,
       status: session.status.toLowerCase(),
