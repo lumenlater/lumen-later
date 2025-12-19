@@ -14,8 +14,9 @@ Redirect-based checkout flow for merchant integration, similar to Stripe Checkou
 - [x] DB Schema - MerchantApiKey model
 - [x] DB Schema - CheckoutSession model
 - [x] DB Schema - WebhookDelivery model
-- [ ] JWT utility functions (sign, verify)
-- [ ] Stellar signature verification utility
+- [x] JWT utility functions (sign, verify)
+- [x] Stellar signature verification utility
+- [x] API key generation/verification utility
 
 ### Phase 2: API Key Management
 - [ ] POST /api/merchant/api-keys - Issue API key (wallet signature)
