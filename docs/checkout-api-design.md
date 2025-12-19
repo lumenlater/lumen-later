@@ -38,9 +38,9 @@ Redirect-based checkout flow for merchant integration, similar to Stripe Checkou
 - [x] POST /api/pay/[sessionId]/complete - Complete session API
 
 ### Phase 5: Webhook
-- [ ] Webhook dispatch on payment completion
-- [ ] Webhook signature for verification
-- [ ] Retry logic for failed webhooks
+- [x] Webhook dispatch on payment completion
+- [x] Webhook signature for verification (HMAC-SHA256)
+- [x] Retry logic for failed webhooks (3 attempts with backoff)
 
 ### Phase 6: Merchant Dashboard UI
 - [ ] API Keys management page

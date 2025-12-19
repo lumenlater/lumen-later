@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { completeCheckoutSession, getCheckoutSession } from '@/lib/checkout/session';
+import { dispatchWebhook } from '@/lib/checkout/webhook';
 
 /**
  * POST /api/pay/[sessionId]/complete
@@ -63,8 +64,10 @@ export async function POST(
       );
     }
 
-    // TODO: Dispatch webhook here
-    // await dispatchWebhook(updatedSession);
+    // Dispatch webhook (fire and forget - don't block response)
+    dispatchWebhook(updatedSession).catch((err) => {
+      console.error('Webhook dispatch error:', err);
+    });
 
     return NextResponse.json({
       success: true,

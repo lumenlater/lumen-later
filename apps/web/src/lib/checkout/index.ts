@@ -8,3 +8,11 @@ export {
   type CreateSessionParams,
   type CheckoutSessionData,
 } from './session';
+
+export {
+  dispatchWebhook,
+  generateWebhookSignature,
+  verifyWebhookSignature,
+  processWebhookRetries,
+  type WebhookPayload,
+} from './webhook';
