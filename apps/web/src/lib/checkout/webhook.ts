@@ -2,7 +2,6 @@ import { createHmac } from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { CheckoutSessionData } from './session';
 
-const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'default-webhook-secret';
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_DELAYS = [60, 300, 900]; // seconds: 1min, 5min, 15min
 
@@ -27,10 +26,11 @@ export interface WebhookPayload {
  */
 export function generateWebhookSignature(
   payload: string,
-  timestamp: number
+  timestamp: number,
+  secret: string
 ): string {
   const signedPayload = `${timestamp}.${payload}`;
-  const hmac = createHmac('sha256', WEBHOOK_SECRET)
+  const hmac = createHmac('sha256', secret)
     .update(signedPayload)
     .digest('hex');
 
@@ -43,6 +43,7 @@ export function generateWebhookSignature(
 export function verifyWebhookSignature(
   payload: string,
   signature: string,
+  secret: string,
   maxAgeSeconds = 300
 ): { valid: boolean; error?: string } {
   // Parse signature
@@ -69,7 +70,7 @@ export function verifyWebhookSignature(
 
   // Verify signature
   const signedPayload = `${timestamp}.${payload}`;
-  const computedSignature = createHmac('sha256', WEBHOOK_SECRET)
+  const computedSignature = createHmac('sha256', secret)
     .update(signedPayload)
     .digest('hex');
 
@@ -101,6 +102,17 @@ export function createWebhookPayload(session: CheckoutSessionData): WebhookPaylo
 }
 
 /**
+ * Get merchant's webhook secret
+ */
+async function getMerchantWebhookSecret(merchantId: string): Promise<string | null> {
+  const merchant = await prisma.merchant.findUnique({
+    where: { address: merchantId },
+    select: { webhookSecret: true },
+  });
+  return merchant?.webhookSecret || null;
+}
+
+/**
  * Dispatch webhook for completed session
  */
 export async function dispatchWebhook(
@@ -110,30 +122,37 @@ export async function dispatchWebhook(
     return; // No webhook URL configured
   }
 
+  // Get merchant's webhook secret
+  const webhookSecret = await getMerchantWebhookSecret(session.merchantId);
+  if (!webhookSecret) {
+    console.warn(`No webhook secret configured for merchant ${session.merchantId}`);
+    return; // Cannot sign webhook without secret
+  }
+
   const payload = createWebhookPayload(session);
   const payloadString = JSON.stringify(payload);
   const timestamp = Math.floor(Date.now() / 1000);
-  const signature = generateWebhookSignature(payloadString, timestamp);
+  const signature = generateWebhookSignature(payloadString, timestamp, webhookSecret);
 
   // Create delivery record
   const delivery = await prisma.webhookDelivery.create({
     data: {
       sessionId: session.id,
       webhookUrl: session.webhookUrl,
-      payload: payload,
+      payload: payload as unknown as Record<string, unknown>,
       signature,
       status: 'PENDING',
     },
   });
 
   // Attempt delivery
-  await attemptWebhookDelivery(delivery.id);
+  await attemptWebhookDelivery(delivery.id, webhookSecret);
 }
 
 /**
  * Attempt to deliver a webhook
  */
-async function attemptWebhookDelivery(deliveryId: string): Promise<boolean> {
+async function attemptWebhookDelivery(deliveryId: string, webhookSecret?: string): Promise<boolean> {
   const delivery = await prisma.webhookDelivery.findUnique({
     where: { id: deliveryId },
   });
@@ -142,9 +161,26 @@ async function attemptWebhookDelivery(deliveryId: string): Promise<boolean> {
     return false;
   }
 
+  // Get webhook secret if not provided (for retries)
+  let secret = webhookSecret;
+  if (!secret) {
+    // Fetch session to get merchant ID
+    const session = await prisma.checkoutSession.findUnique({
+      where: { id: delivery.sessionId },
+      select: { merchantId: true },
+    });
+    if (session) {
+      secret = await getMerchantWebhookSecret(session.merchantId) || undefined;
+    }
+  }
+  if (!secret) {
+    console.error(`No webhook secret for delivery ${deliveryId}`);
+    return false;
+  }
+
   const payload = JSON.stringify(delivery.payload);
   const timestamp = Math.floor(Date.now() / 1000);
-  const signature = generateWebhookSignature(payload, timestamp);
+  const signature = generateWebhookSignature(payload, timestamp, secret);
 
   try {
     const response = await fetch(delivery.webhookUrl, {

@@ -434,6 +434,28 @@ model BotDailyMetrics {
 // Checkout API Models
 // ============================================
 
+// Merchant settings for Checkout API
+model Merchant {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Identification
+  address       String    @unique  // Stellar wallet address
+
+  // Display info
+  name          String    @default("Merchant")
+
+  // Webhook configuration
+  webhookSecret String?   // Secret for signing webhooks (whsec_...)
+
+  // Relations
+  apiKeys       MerchantApiKey[]
+  sessions      CheckoutSession[]
+
+  @@map("merchants")
+}
+
 // Merchant API keys for external integration
 model MerchantApiKey {
   id        String    @id @default(auto()) @map("_id") @db.ObjectId
@@ -451,6 +473,9 @@ model MerchantApiKey {
   lastUsedAt    DateTime?
   expiresAt     DateTime
   revokedAt     DateTime?
+
+  // Relation to merchant
+  merchant      Merchant? @relation(fields: [merchantId], references: [address])
 
   @@index([merchantId])
   @@index([keyHash])
@@ -489,6 +514,10 @@ model CheckoutSession {
   completedAt   DateTime?
   userAddress   String?   // Address of the user who paid
 
+  // Relations
+  merchant      Merchant? @relation(fields: [merchantId], references: [address])
+  webhookDeliveries WebhookDelivery[]
+
   @@index([merchantId])
   @@index([status])
   @@index([expiresAt])
@@ -509,6 +538,7 @@ model WebhookDelivery {
 
   // Related session
   sessionId     String    // CheckoutSession ID
+  session       CheckoutSession? @relation(fields: [sessionId], references: [id])
 
   // Delivery details
   webhookUrl    String

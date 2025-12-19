@@ -16,13 +16,15 @@ export function useBnplBill() {
 
   // Create bill mutation
   const createBillMutation = useMutation({
-    mutationFn: async ({ 
+    mutationFn: async ({
+      merchant,
       user,
-      amount, 
-      orderId, 
-    }: { 
+      amount,
+      orderId,
+    }: {
+      merchant?: string; // Optional - defaults to connected wallet
       user: string;
-      amount: string; 
+      amount: string;
       orderId?: string;
     }) => {
       if (!client || !publicKey) throw new Error('Not connected');
@@ -30,14 +32,14 @@ export function useBnplBill() {
       const amountStroops = toStroops(amount);
       // If no order ID is provided, generate a random one
       const orderIdToUse = orderId || (Date.now().toString());
-      
-      const tx = await client.create_bill({ 
-        merchant: publicKey, // Use connected wallet as merchant
-        user: user, // Optional user parameter
-        amount: amountStroops, 
+
+      const tx = await client.create_bill({
+        merchant: merchant || publicKey, // Use provided merchant or connected wallet
+        user: user, // User (borrower)
+        amount: amountStroops,
         order_id: orderIdToUse,
       });
-      
+
       const result = await signAndSendTx(tx);
       const billId = result.result;
       return billId.toString();
@@ -51,18 +53,18 @@ export function useBnplBill() {
 
   // Pay bill mutation
   const payBillMutation = useMutation({
-    mutationFn: async ({ 
-      billId, 
-    }: { 
-      billId: string; 
+    mutationFn: async ({
+      billId,
+    }: {
+      billId: string;
     }) => {
       if (!client || !publicKey) throw new Error('Not connected');
 
       // For BNPL payment
-      const tx = await client.pay_bill_bnpl({ 
+      const tx = await client.pay_bill_bnpl({
         bill_id: BigInt(billId),
       });
-        
+
       const result = await signAndSendTx(tx);
       const loanId = result.result;
       return loanId.toString();
@@ -117,8 +119,8 @@ export function useBnplBill() {
     getUserBorrowingPower,
 
     // Mutations
-    createBill: (user: string, amount: string, orderId?: string) =>
-      createBillMutation.mutateAsync({user, amount, orderId }),
+    createBill: (params: { merchant?: string; user: string; amount: string; orderId?: string }) =>
+      createBillMutation.mutateAsync(params),
     payBill: (billId: string) =>
       payBillMutation.mutateAsync({ billId }),
     repayBill: (billId: string) =>
