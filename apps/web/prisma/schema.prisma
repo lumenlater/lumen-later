@@ -429,3 +429,108 @@ model BotDailyMetrics {
 
   @@map("bot_daily_metrics")
 }
+
+// ============================================
+// Checkout API Models
+// ============================================
+
+// Merchant API keys for external integration
+model MerchantApiKey {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime  @default(now())
+
+  // Owner identification
+  merchantId    String    // Wallet address of the merchant
+
+  // Key properties
+  name          String    @default("Default")
+  keyPrefix     String    // "ll_live_" or "ll_test_"
+  keyHash       String    // SHA256 hash of full key (for lookup)
+
+  // Status tracking
+  lastUsedAt    DateTime?
+  expiresAt     DateTime
+  revokedAt     DateTime?
+
+  @@index([merchantId])
+  @@index([keyHash])
+  @@map("merchant_api_keys")
+}
+
+// Checkout sessions for redirect-based payment flow
+model CheckoutSession {
+  id        String    @id @map("_id") // "cs_" + cuid() - custom ID format
+
+  createdAt DateTime  @default(now())
+
+  // Merchant info
+  merchantId    String    // Wallet address of the merchant
+
+  // Payment details
+  amount        Float     // Amount in USDC (7 decimals)
+  orderId       String?   // Merchant's order reference
+  description   String?   // Description shown to user
+
+  // Redirect URLs
+  successUrl    String    // URL to redirect after successful payment
+  cancelUrl     String    // URL to redirect if user cancels
+  webhookUrl    String?   // URL for webhook notifications
+
+  // Custom data
+  metadata      Json?     // Arbitrary merchant data
+
+  // Session status
+  status        CheckoutSessionStatus @default(PENDING)
+  expiresAt     DateTime  // 1 hour from creation
+
+  // Completion info
+  billId        String?   // On-chain bill ID after completion
+  txHash        String?   // Transaction hash
+  completedAt   DateTime?
+  userAddress   String?   // Address of the user who paid
+
+  @@index([merchantId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("checkout_sessions")
+}
+
+enum CheckoutSessionStatus {
+  PENDING     // Waiting for user to pay
+  COMPLETED   // Payment successful
+  EXPIRED     // Session timed out
+  CANCELLED   // User cancelled
+}
+
+// Webhook delivery log
+model WebhookDelivery {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime  @default(now())
+
+  // Related session
+  sessionId     String    // CheckoutSession ID
+
+  // Delivery details
+  webhookUrl    String
+  payload       Json
+  signature     String    // For verification
+
+  // Status
+  status        WebhookDeliveryStatus @default(PENDING)
+  attempts      Int       @default(0)
+  lastAttemptAt DateTime?
+  nextRetryAt   DateTime?
+  responseCode  Int?
+  responseBody  String?
+
+  @@index([sessionId])
+  @@index([status])
+  @@index([nextRetryAt])
+  @@map("webhook_deliveries")
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
