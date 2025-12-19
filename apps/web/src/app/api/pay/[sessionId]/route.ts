@@ -50,13 +50,14 @@ export async function GET(
       // Redirect URLs for client
       success_url: session.successUrl,
       cancel_url: session.cancelUrl,
+      // Bill ID (always include if available - needed for payment)
+      bill_id: session.billId,
       // Completion info (only if completed)
       ...(isCompleted && {
-        bill_id: session.billId,
         completed_at: session.completedAt?.toISOString(),
       }),
       // Flags for UI
-      can_pay: session.status === 'PENDING' && !isExpired,
+      can_pay: session.status === 'PENDING' && !isExpired && !!session.billId,
       is_expired: isExpired,
       is_completed: isCompleted,
       is_cancelled: isCancelled,
