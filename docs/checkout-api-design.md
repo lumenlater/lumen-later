@@ -19,10 +19,10 @@ Redirect-based checkout flow for merchant integration, similar to Stripe Checkou
 - [x] API key generation/verification utility
 
 ### Phase 2: API Key Management
-- [ ] POST /api/merchant/api-keys - Issue API key (wallet signature)
-- [ ] GET /api/merchant/api-keys - List API keys
-- [ ] DELETE /api/merchant/api-keys/[id] - Revoke API key
-- [ ] Middleware for API key authentication
+- [x] POST /api/merchant/api-keys - Issue API key (wallet signature)
+- [x] GET /api/merchant/api-keys - List API keys
+- [x] DELETE /api/merchant/api-keys/[id] - Revoke API key
+- [x] Middleware for API key authentication
 
 ### Phase 3: Checkout Session
 - [ ] POST /api/checkout/sessions - Create session

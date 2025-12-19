@@ -25,3 +25,10 @@ export {
   type CreateApiKeyResult,
   type ApiKeyInfo,
 } from './api-key';
+
+// Authentication middleware
+export {
+  authenticateApiKey,
+  isAuthError,
+  type AuthenticatedRequest,
+} from './middleware';
