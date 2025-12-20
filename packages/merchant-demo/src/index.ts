@@ -15,8 +15,14 @@ const ll = new LumenLater({
 
 console.log("Merchant public key:", ll.publicKey);
 
-// Middleware
-app.use(express.json());
+// Middleware - exclude webhook path from json parsing
+app.use((req, res, next) => {
+  if (req.path === '/webhooks/lumenlater') {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
 app.use(express.urlencoded({ extended: true }));
 
 // Serve simple HTML pages
