@@ -15,7 +15,7 @@ const createSessionSchema = z.object({
   success_url: z.string().url('Invalid success URL'),
   cancel_url: z.string().url('Invalid cancel URL'),
   webhook_url: z.string().url('Invalid webhook URL').optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 /**
@@ -38,12 +38,11 @@ export async function POST(request: NextRequest) {
     const validation = createSessionSchema.safeParse(body);
 
     if (!validation.success) {
-      const errors = validation.error.issues || validation.error.errors || [];
       return NextResponse.json(
         {
           error: 'Invalid request',
-          details: errors.map((e: { path: (string | number)[]; message: string }) => ({
-            field: e.path.join('.'),
+          details: validation.error.issues.map((e) => ({
+            field: e.path.map(String).join('.'),
             message: e.message,
           })),
         },

@@ -139,7 +139,7 @@ export async function dispatchWebhook(
     data: {
       sessionId: session.id,
       webhookUrl: session.webhookUrl,
-      payload: payload as unknown as Record<string, unknown>,
+      payload: payload as object,
       signature,
       status: 'PENDING',
     },
