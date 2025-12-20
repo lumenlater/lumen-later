@@ -18,10 +18,7 @@ import {
 } from 'lucide-react';
 import { useWallet } from '@/hooks/web3/use-wallet';
 import { useBnplBill } from '@/hooks/web3/use-bnpl-bill';
-import { useUsdcToken } from '@/hooks/web3/use-usdc-token';
 import { replaceSessionIdPlaceholder } from '@/lib/checkout/session';
-import CONTRACT_IDS from '@/config/contracts';
-import { Config } from '@/constants/config';
 
 interface CheckoutSessionInfo {
   id: string;
@@ -53,10 +50,8 @@ export default function PayPage({
   const { toast } = useToast();
   const { publicKey, isConnected, connect } = useWallet();
   const { payBill, isLoading: isPayingBill } = useBnplBill();
-  const { getAllowance, approve, isLoading: isApprovingUsdc } = useUsdcToken();
 
   const [session, setSession] = useState<CheckoutSessionInfo | null>(null);
-  const [paymentStep, setPaymentStep] = useState<'idle' | 'approving' | 'paying'>('idle');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPaying, setIsPaying] = useState(false);
@@ -98,53 +93,37 @@ export default function PayPage({
 
     setIsPaying(true);
     try {
-      // Collateral required: 111% of amount (in stroops)
-      const collateralAmount = BigInt(Math.floor(session.amount * 1.11));
-
-      // Step 1: Check and approve USDC for BNPL contract (for collateral)
-      setPaymentStep('approving');
-      console.log('Checking USDC allowance for BNPL contract...');
-
-      const currentAllowance = await getAllowance(CONTRACT_IDS.BNPL_CORE);
-      console.log('Current allowance:', currentAllowance.toString(), 'Required:', collateralAmount.toString());
-
-      if (currentAllowance < collateralAmount) {
-        toast({
-          title: 'Step 1/2: Approving USDC',
-          description: 'Please approve USDC for collateral...',
-        });
-
-        // Approve with 10% extra buffer
-        const approveAmount = BigInt(Math.floor(session.amount * 1.22)); // 111% * 110% = ~122%
-        await approve(CONTRACT_IDS.BNPL_CORE, (Number(approveAmount) / 1e7).toString());
-        console.log('USDC approved');
-      }
-
-      // Step 2: Pay the existing bill created by the merchant
-      setPaymentStep('paying');
+      // Pay the existing bill created by the merchant
+      // Note: User must have sufficient collateral deposited in the system
+      // The BNPL contract will check borrowing power and pay merchant from the liquidity pool
       toast({
-        title: 'Step 2/2: Processing Payment',
+        title: 'Processing Payment',
         description: 'Paying bill with BNPL...',
       });
 
       console.log('Paying bill:', session.bill_id);
 
-      await payBill(session.bill_id);
+      const paymentResult = await payBill(session.bill_id);
 
-      console.log('Payment completed, bill ID:', session.bill_id);
+      console.log('Payment completed:', paymentResult);
 
-      // Step 3: Update session status via API
+      // Update session status via API
+      console.log('Calling complete API...');
       const completeResponse = await fetch(`/api/pay/${sessionId}/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           billId: session.bill_id,
+          txHash: paymentResult.txHash,
           userAddress: publicKey,
         }),
       });
 
+      const completeData = await completeResponse.json();
+      console.log('Complete API response:', completeData);
+
       if (!completeResponse.ok) {
-        console.warn('Failed to update session status, but payment succeeded');
+        console.error('Failed to update session status:', completeData);
       }
 
       toast({
@@ -164,7 +143,6 @@ export default function PayPage({
       });
     } finally {
       setIsPaying(false);
-      setPaymentStep('idle');
     }
   };
 
@@ -177,8 +155,8 @@ export default function PayPage({
 
   // Format amount for display
   const formatAmount = (amount: number) => {
-    // Amount is in stroops (7 decimals)
-    return (amount / 1e7).toFixed(2);
+    // Amount is in USDC (dollars)
+    return amount.toFixed(2);
   };
 
   // Loading state
@@ -327,8 +305,8 @@ export default function PayPage({
               <h4 className="font-medium text-blue-900 mb-2">BNPL Terms</h4>
               <ul className="text-sm text-blue-700 space-y-1">
                 <li>• 14-day interest-free repayment period</li>
-                <li>• No upfront payment required</li>
-                <li>• Collateral required: 111% of purchase amount</li>
+                <li>• Merchant paid from liquidity pool</li>
+                <li>• Requires 111% collateral (pre-deposited)</li>
               </ul>
             </div>
           </CardContent>
@@ -359,14 +337,12 @@ export default function PayPage({
                   className="w-full"
                   size="lg"
                   onClick={handlePay}
-                  disabled={isPaying || isPayingBill || isApprovingUsdc || !session.can_pay}
+                  disabled={isPaying || isPayingBill || !session.can_pay}
                 >
-                  {isPaying || isPayingBill || isApprovingUsdc ? (
+                  {isPaying || isPayingBill ? (
                     <>
                       <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      {paymentStep === 'approving' && 'Approving USDC...'}
-                      {paymentStep === 'paying' && 'Processing Payment...'}
-                      {paymentStep === 'idle' && 'Processing...'}
+                      Processing Payment...
                     </>
                   ) : (
                     <>
@@ -379,7 +355,7 @@ export default function PayPage({
                   variant="outline"
                   className="w-full"
                   onClick={handleCancel}
-                  disabled={isPaying || isPayingBill || isApprovingUsdc}
+                  disabled={isPaying || isPayingBill}
                 >
                   Cancel
                 </Button>

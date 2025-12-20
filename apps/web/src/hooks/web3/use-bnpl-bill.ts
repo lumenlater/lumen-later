@@ -57,7 +57,7 @@ export function useBnplBill() {
       billId,
     }: {
       billId: string;
-    }) => {
+    }): Promise<{ billId: string; txHash: string }> => {
       if (!client || !publicKey) throw new Error('Not connected');
 
       // For BNPL payment
@@ -66,8 +66,11 @@ export function useBnplBill() {
       });
 
       const result = await signAndSendTx(tx);
-      const loanId = result.result;
-      return loanId.toString();
+      // Return billId and transaction hash
+      return {
+        billId,
+        txHash: result.sendTransactionResponse?.hash || '',
+      };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.all });
@@ -121,7 +124,7 @@ export function useBnplBill() {
     // Mutations
     createBill: (params: { merchant?: string; user: string; amount: string; orderId?: string }) =>
       createBillMutation.mutateAsync(params),
-    payBill: (billId: string) =>
+    payBill: (billId: string): Promise<{ billId: string; txHash: string }> =>
       payBillMutation.mutateAsync({ billId }),
     repayBill: (billId: string) =>
       repayBillMutation.mutateAsync({ billId }),

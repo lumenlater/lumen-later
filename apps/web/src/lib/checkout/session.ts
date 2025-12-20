@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { CheckoutSessionStatus } from '@prisma/client';
 import { createId } from '@paralleldrive/cuid2';
+import CONTRACT_IDS from '@/config/contracts';
 
 const SESSION_EXPIRY_HOURS = 1;
 const SESSION_ID_PREFIX = 'cs_';
@@ -77,7 +78,7 @@ export async function createCheckoutSession(
       successUrl,
       cancelUrl,
       webhookUrl,
-      metadata: metadata || undefined,
+      metadata: metadata ? (metadata as object) : undefined,
       expiresAt,
     },
   });
@@ -124,22 +125,60 @@ export async function completeCheckoutSession(params: {
   const { sessionId, billId, txHash, userAddress } = params;
 
   try {
-    const session = await prisma.checkoutSession.update({
+    // Get the session first to access all data
+    const existingSession = await prisma.checkoutSession.findUnique({
+      where: { id: sessionId },
+    });
+
+    if (!existingSession || existingSession.status !== 'PENDING') {
+      return null;
+    }
+
+    // Get merchant info for the bill
+    const merchant = await prisma.merchantApplication.findFirst({
       where: {
-        id: sessionId,
-        status: 'PENDING',
-      },
-      data: {
-        status: 'COMPLETED',
-        billId,
-        txHash,
-        userAddress,
-        completedAt: new Date(),
+        applicantAddress: existingSession.merchantId,
+        status: 'APPROVED',
       },
     });
 
+    const merchantName = merchant?.businessInfo?.tradingName ||
+                         merchant?.businessInfo?.legalName ||
+                         'Merchant';
+
+    // Use transaction to update session and create bill atomically
+    const [session] = await prisma.$transaction([
+      // Update checkout session
+      prisma.checkoutSession.update({
+        where: {
+          id: sessionId,
+          status: 'PENDING',
+        },
+        data: {
+          status: 'COMPLETED',
+          billId,
+          txHash,
+          userAddress,
+          completedAt: new Date(),
+        },
+      }),
+      // Create off-chain bill for user's dashboard
+      prisma.bill.create({
+        data: {
+          contractId: CONTRACT_IDS.BNPL_CORE,
+          merchantAddress: existingSession.merchantId,
+          userAddress,
+          amount: existingSession.amount,
+          description: existingSession.description || `Order ${existingSession.orderId || sessionId}`,
+          merchantName,
+          onChainBillId: parseInt(billId, 10),
+        },
+      }),
+    ]);
+
     return transformSession(session);
-  } catch {
+  } catch (error) {
+    console.error('Error completing checkout session:', error);
     // Session not found or not in PENDING status
     return null;
   }
