@@ -120,7 +120,8 @@ export default function UserDashboard() {
       const onChainBill = onChainMap.get(offChainBill.id);
       return {
         ...offChainBill,
-        onChainBillId: onChainBill?.bill_id,
+        // Preserve existing onChainBillId, only use onChainBill if not already set
+        onChainBillId: offChainBill.onChainBillId ?? onChainBill?.bill_id,
         txHash: onChainBill?.txHash,
         onChainCreatedAt: onChainBill?.created_at,
       };
