@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 
+interface WebhookEvent {
+  type: string;
+  data: {
+    session_id: string;
+    bill_id: string;
+    amount: number;
+    order_id: string;
+    tx_hash: string;
+    user_address: string;
+    metadata: unknown;
+  };
+}
+
 function verifyWebhookSignature(payload: string, signature: string, secret: string): boolean {
   try {
     const [timestampPart, signaturePart] = signature.split(',');
@@ -41,7 +54,7 @@ export async function POST(request: NextRequest) {
     console.log('Signature verified!');
   }
 
-  const event = JSON.parse(payload);
+  const event = JSON.parse(payload) as WebhookEvent;
   console.log('Event type:', event.type);
   console.log('Event data:', JSON.stringify(event.data, null, 2));
 

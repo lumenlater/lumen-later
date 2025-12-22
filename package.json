@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.0.0",
   "scripts": {
     "// Environment Management": "========================================",
     "env:select": "node scripts/env-select.mjs",
@@ -35,7 +36,8 @@
     "clean": "rm -rf node_modules packages/*/node_modules packages/*/dist .stellar/contract-ids"
   },
   "devDependencies": {
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "turbo": "^2.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
