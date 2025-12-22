@@ -5,7 +5,7 @@
   "description": "Demo merchant for testing LumenLater Checkout API",
   "scripts": {
     "dev": "next dev -p 4100",
-    "build": "pnpm --filter @lumenlater/merchant-sdk build && next build",
+    "build": "pnpm --filter @lumenlater/bnpl-core-client build && pnpm --filter @lumenlater/merchant-sdk build && next build",
     "start": "next start -p 4100"
   },
   "dependencies": {
