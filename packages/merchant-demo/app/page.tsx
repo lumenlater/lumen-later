@@ -1,4 +1,5 @@
 import './globals.css';
+import { Logo } from './components/Logo';
 
 export default function Home() {
   return (
@@ -6,13 +7,7 @@ export default function Home() {
       {/* Header */}
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 60 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 24, fontWeight: 700 }}>
-          <div style={{
-            width: 40, height: 40,
-            background: 'linear-gradient(135deg, #00d4ff, #7c3aed)',
-            borderRadius: 10,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 20
-          }}>⚡</div>
+          <Logo size={40} />
           <span>NeonAI</span>
         </div>
         <nav style={{ display: 'flex', gap: 24 }}>
