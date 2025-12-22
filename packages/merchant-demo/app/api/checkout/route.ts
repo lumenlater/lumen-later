@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ll } from '@/lib/lumenlater';
+import { getLumenLater } from '@/lib/lumenlater';
 import { headers } from 'next/headers';
 
 export async function POST(request: NextRequest) {
@@ -19,6 +19,8 @@ export async function POST(request: NextRequest) {
     console.log(`Creating checkout for ${product}, amount: ${amount} USDC`);
     console.log(`User address: ${userAddress}`);
     console.log(`Base URL: ${baseUrl}`);
+
+    const ll = getLumenLater();
 
     // Step 1: Create bill on-chain
     console.log('Creating bill on-chain...');
