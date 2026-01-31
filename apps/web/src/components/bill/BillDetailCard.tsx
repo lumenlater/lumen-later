@@ -90,11 +90,17 @@ export function BillDetailCard({
   const { toast } = useToast();
   const status = statusConfig[indexedData.status];
 
+  // Normalize status for comparison (PAID -> Paid, REPAID -> Repaid, etc.)
+  const normalizeStatus = (status: string): string => {
+    return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+  };
+
   // Check for data mismatch between indexed and on-chain
   const hasMismatch = onChainData && (
     indexedData.amount !== onChainData.principal ||
     indexedData.merchant !== onChainData.merchant ||
-    indexedData.user !== onChainData.user
+    indexedData.user !== onChainData.user ||
+    normalizeStatus(indexedData.status) !== normalizeStatus(onChainData.status)
   );
 
   const copyToClipboard = (text: string, label: string) => {
@@ -277,7 +283,9 @@ export function BillDetailCard({
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>Status</div>
                 <div>{indexedData.status}</div>
-                <div>{onChainData.status}</div>
+                <div className={normalizeStatus(indexedData.status) !== normalizeStatus(onChainData.status) ? 'text-red-600 font-bold' : ''}>
+                  {onChainData.status}
+                </div>
               </div>
 
               {hasMismatch && onReport && (

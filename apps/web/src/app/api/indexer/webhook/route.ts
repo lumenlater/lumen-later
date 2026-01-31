@@ -346,6 +346,12 @@ export async function POST(request: NextRequest) {
     const processed = results.filter(r => r.processed).length;
     const failed = results.filter(r => !r.processed && r.error !== 'Unknown event type: init');
 
+    // Log failed events for debugging
+    failed.forEach((result, index) => {
+      const event = events[results.indexOf(result)];
+      console.error(`[Webhook] Failed event: ${event?.id}, error: ${result.error}, topics: ${event?.topics}`);
+    });
+
     console.log(`[Webhook] Processed: ${processed}, Skipped/Failed: ${results.length - processed}`);
 
     // Goldsky expects the same data back (for handler transforms)
