@@ -1,5 +1,14 @@
 /**
  * Integrated Liquidity Pool hook combining pool operations and LP token management
+ *
+ * LP Token Accounting (Aave-style):
+ * - balance(user) returns USDC value: raw_shares * index / DECIMALS
+ * - raw_shares(user) returns internal share count
+ * - total_supply() returns total USDC value
+ * - total_raw_shares() returns total internal shares
+ *
+ * The index grows over time as interest accrues, so same raw_shares
+ * will have increasing USDC value.
  */
 
 import { useMemo } from 'react';
@@ -29,9 +38,11 @@ const liquidityPoolKeys = {
   stats: () => [...liquidityPoolKeys.all, 'stats'] as const,
   apy: () => [...liquidityPoolKeys.all, 'apy'] as const,
   balance: (address: string) => [...liquidityPoolKeys.all, 'balance', address] as const,
+  rawShares: (address: string) => [...liquidityPoolKeys.all, 'rawShares', address] as const,
   decimals: () => [...liquidityPoolKeys.all, 'decimals'] as const,
   lockedBalance: (address: string) => [...liquidityPoolKeys.all, 'lockedBalance', address] as const,
   totalSupply: () => [...liquidityPoolKeys.all, 'totalSupply'] as const,
+  totalRawShares: () => [...liquidityPoolKeys.all, 'totalRawShares'] as const,
   totalBorrowed: () => [...liquidityPoolKeys.all, 'totalBorrowed'] as const,
   utilizationRatio: () => [...liquidityPoolKeys.all, 'utilizationRatio'] as const,
 };
@@ -42,15 +53,18 @@ const LP_TOKEN_DECIMALS = Config.USDC_DECIMALS;
 interface UseLiquidityPoolReturn {
   // Pool stats
   poolStats: PoolStats | null;
-  
-  // LP Token balances
-  balance: bigint | null;
+
+  // LP Token balances (Aave-style: balance = rawShares * index / DECIMALS)
+  balance: bigint | null;           // USDC value (withdrawable amount)
+  rawShares: bigint | null;         // Raw share count (internal accounting)
   lockedBalance: bigint | null;
   availableBalance: bigint | null;
-  formattedBalance: string;
+  formattedBalance: string;         // USDC value formatted
+  formattedRawShares: string;       // LP token count formatted
   balanceInUSDC: bigint | null;
   decimals: number;
-  totalSupply: bigint | null;
+  totalSupply: bigint | null;       // Total LP tokens (USDC value)
+  totalRawShares: bigint | null;    // Total raw shares
   totalBorrowed: bigint | null;
   utilizationRatio: number | null;
   
@@ -82,7 +96,7 @@ export function useLiquidityPool(): UseLiquidityPoolReturn {
   const kit = getWalletKit();
 
   // Get real APY from protocol stats API
-  const { poolApyDaily, isLoading: isProtocolStatsLoading } = useProtocolStats();
+  const { poolApyDaily, totalOutstanding, isLoading: isProtocolStatsLoading } = useProtocolStats();
 
   // Initialize LP token client
   const lpClient = useMemo(() => {
@@ -127,19 +141,23 @@ export function useLiquidityPool(): UseLiquidityPoolReturn {
       // Get total supply of LP tokens
       const totalSupplyTx = await lpClient.total_supply();
       const totalShares = totalSupplyTx.result || 0n;
-      
-      // Get USDC balance of LP token contract (total assets in pool)
+
+      // Get USDC balance of LP token contract (liquidity in pool)
       const balanceTx = await usdcClient.balance({ address: CONTRACT_IDS.LP_TOKEN });
-      const totalAssets = balanceTx.result || 0n;
-      
-      // Get system stats from unified BNPL (would be refactored to query)
-      const systemStats = queryClient.getQueryData(['unifiedBNPL', 'systemStats']) as any;
-      const totalBorrowed = systemStats?.totalVolume24h || 0n;
+      const poolBalance = balanceTx.result || 0n;
+
+      // Get total borrowed directly from on-chain LP contract (most accurate)
+      const totalBorrowedTx = await lpClient.total_borrowed();
+      const totalBorrowed = totalBorrowedTx.result ? BigInt(totalBorrowedTx.result) : 0n;
+
+      // Total assets = pool balance + outstanding loans
+      // This represents the true value of the pool
+      const totalAssets = poolBalance + totalBorrowed;
       
       // Calculate stats
-      const availableLiquidity = totalAssets;
+      const availableLiquidity = poolBalance; // Only the USDC actually in the pool is available
       const utilizationRate = totalAssets > 0n
-        ? Number((totalBorrowed * 10000n) / (totalAssets + totalBorrowed)) / 100
+        ? Number((totalBorrowed * 10000n) / totalAssets) / 100
         : 0;
 
       // Use real APY from protocol stats API (default to utilization-based calculation if not available)
@@ -161,12 +179,12 @@ export function useLiquidityPool(): UseLiquidityPoolReturn {
     refetchOnWindowFocus: true,
   });
 
-  // Query for LP token balance
+  // Query for LP token balance (USDC value - Aave-style: shares * index / DECIMALS)
   const { data: balance, isLoading: isBalanceLoading, error: balanceError } = useQuery({
     queryKey: liquidityPoolKeys.balance(publicKey || ''),
     queryFn: async () => {
       if (!lpClient || !publicKey) return null;
-      
+
       const balanceResult = await lpClient.balance({ user: publicKey });
       return balanceResult.result || 0n;
     },
@@ -176,14 +194,47 @@ export function useLiquidityPool(): UseLiquidityPoolReturn {
     refetchInterval: Config.REFRESH_INTERVAL,
     refetchOnWindowFocus: true,
   });
+
+  // Query for raw shares (internal accounting - actual share count before index multiplication)
+  const { data: rawShares, isLoading: isRawSharesLoading, error: rawSharesError } = useQuery({
+    queryKey: liquidityPoolKeys.rawShares(publicKey || ''),
+    queryFn: async () => {
+      if (!lpClient || !publicKey) return null;
+
+      const rawSharesResult = await lpClient.raw_shares({ user: publicKey });
+      return rawSharesResult.result || 0n;
+    },
+    enabled: !!lpClient && !!publicKey && isConnected,
+    staleTime: 30 * 1000, // 30 seconds
+    gcTime: 5 * 60 * 1000, // 5 minutes
+    refetchInterval: Config.REFRESH_INTERVAL,
+    refetchOnWindowFocus: true,
+  });
   
+  // Total LP tokens (USDC value = total_raw_shares * index / DECIMALS)
   const { data: totalSupply, isLoading: isTotalSupplyLoading, error: totalSupplyError } = useQuery({
     queryKey: liquidityPoolKeys.totalSupply(),
     queryFn: async () => {
       if (!lpClient) return null;
-      
+
       const totalSupplyResult = await lpClient.total_supply();
       return totalSupplyResult.result || 0n;
+    },
+    enabled: !!lpClient && isConnected,
+    staleTime: 30 * 1000, // 30 seconds
+    gcTime: 5 * 60 * 1000, // 5 minutes
+    refetchInterval: Config.REFRESH_INTERVAL,
+    refetchOnWindowFocus: true,
+  });
+
+  // Total raw shares (internal accounting)
+  const { data: totalRawShares, isLoading: isTotalRawSharesLoading, error: totalRawSharesError } = useQuery({
+    queryKey: liquidityPoolKeys.totalRawShares(),
+    queryFn: async () => {
+      if (!lpClient) return null;
+
+      const totalRawSharesResult = await lpClient.total_raw_shares();
+      return totalRawSharesResult.result || 0n;
     },
     enabled: !!lpClient && isConnected,
     staleTime: 30 * 1000, // 30 seconds
@@ -282,6 +333,8 @@ export function useLiquidityPool(): UseLiquidityPoolReturn {
       // Invalidate related queries after successful deposit
       queryClient.invalidateQueries({ queryKey: liquidityPoolKeys.stats() });
       queryClient.invalidateQueries({ queryKey: liquidityPoolKeys.balance(publicKey || '') });
+      queryClient.invalidateQueries({ queryKey: liquidityPoolKeys.rawShares(publicKey || '') });
+      queryClient.invalidateQueries({ queryKey: liquidityPoolKeys.totalRawShares() });
       queryClient.invalidateQueries({ queryKey: ['usdcToken', 'balance'] });
     },
   });
@@ -301,7 +354,7 @@ export function useLiquidityPool(): UseLiquidityPoolReturn {
       // Create withdraw transaction
       const tx = await lpClient.withdraw({
         from: publicKey,
-        lp_amount: lpAmountInStroops,
+        amount: lpAmountInStroops,
       });
 
       // Sign and submit the transaction
@@ -326,6 +379,8 @@ export function useLiquidityPool(): UseLiquidityPoolReturn {
       // Invalidate related queries after successful withdrawal
       queryClient.invalidateQueries({ queryKey: liquidityPoolKeys.stats() });
       queryClient.invalidateQueries({ queryKey: liquidityPoolKeys.balance(publicKey || '') });
+      queryClient.invalidateQueries({ queryKey: liquidityPoolKeys.rawShares(publicKey || '') });
+      queryClient.invalidateQueries({ queryKey: liquidityPoolKeys.totalRawShares() });
       queryClient.invalidateQueries({ queryKey: ['usdcToken', 'balance'] });
     },
   });
@@ -370,18 +425,20 @@ export function useLiquidityPool(): UseLiquidityPoolReturn {
     onSuccess: () => {
       // Invalidate and refetch balance after successful transfer
       queryClient.invalidateQueries({ queryKey: liquidityPoolKeys.balance(publicKey || '') });
+      queryClient.invalidateQueries({ queryKey: liquidityPoolKeys.rawShares(publicKey || '') });
     },
   });
 
-  // Calculate formatted balance
+  // Calculate formatted balances
   const formattedBalance = balance ? fromStroops(balance) : '0.00';
+  const formattedRawShares = rawShares ? fromStroops(rawShares) : '0.00';
 
   // Calculate LP token value in USDC
+  // NOTE: Aave-style accounting - balance() returns USDC value directly (shares * index / DECIMALS)
+  // This is the exact withdrawable amount. raw_shares() returns actual internal share count.
   const calculateLPTokenValue = (lpTokenAmount: bigint): bigint => {
-    if (!poolStats || poolStats.totalShares === 0n) return 0n;
-    
-    // Value = (lpTokenAmount * totalAssets) / totalShares
-    return (lpTokenAmount * poolStats.totalAssets) / poolStats.totalShares;
+    // balance() = USDC value (exact amount you'd receive on withdraw)
+    return lpTokenAmount;
   };
 
   // Calculate balance in USDC
@@ -449,7 +506,9 @@ export function useLiquidityPool(): UseLiquidityPoolReturn {
   // Get error message
   const error = statsError ? getErrorMessage(statsError) :
                 balanceError ? getErrorMessage(balanceError) :
+                rawSharesError ? getErrorMessage(rawSharesError) :
                 totalSupplyError ? getErrorMessage(totalSupplyError) :
+                totalRawSharesError ? getErrorMessage(totalRawSharesError) :
                 totalBorrowedError ? getErrorMessage(totalBorrowedError) :
                 utilizationRatioError ? getErrorMessage(utilizationRatioError) :
                 depositMutation.error ? getErrorMessage(depositMutation.error) :
@@ -457,21 +516,25 @@ export function useLiquidityPool(): UseLiquidityPoolReturn {
                 transferMutation.error ? getErrorMessage(transferMutation.error) : null;
 
   // Determine loading state
-  const isLoading = isStatsLoading || isBalanceLoading || isTotalSupplyLoading || isTotalBorrowedLoading || isUtilizationRatioLoading ||
+  const isLoading = isStatsLoading || isBalanceLoading || isRawSharesLoading || isTotalSupplyLoading ||
+                    isTotalRawSharesLoading || isTotalBorrowedLoading || isUtilizationRatioLoading ||
                     isProtocolStatsLoading || depositMutation.isPending || withdrawMutation.isPending || transferMutation.isPending;
 
   return {
     // Pool stats
     poolStats: poolStats || null,
-    
-    // LP Token balances
-    balance: balance ?? null,
+
+    // LP Token balances (Aave-style accounting)
+    balance: balance ?? null,           // USDC value (withdrawable amount)
+    rawShares: rawShares ?? null,       // Raw share count (internal accounting)
     lockedBalance,
     availableBalance: availableBalance || null,
-    formattedBalance,
+    formattedBalance,                   // USDC value formatted
+    formattedRawShares,                 // LP token count formatted
     balanceInUSDC,
     decimals,
-    totalSupply: totalSupply ?? null,
+    totalSupply: totalSupply ?? null,       // Total LP tokens (USDC value)
+    totalRawShares: totalRawShares ?? null, // Total raw shares
     totalBorrowed: totalBorrowed ?? null,
     utilizationRatio: utilizationRatio ?? null,
     
