@@ -35,7 +35,7 @@ function validateWebhookSecret(request: NextRequest): boolean {
 const EVENT_TYPES = {
   BILL_CREATED: 'bill_new',
   BILL_PAID: 'payment',
-  BILL_REPAID: 'repay',  // Fixed: was 'repayment', actual event is 'repay'
+  BILL_REPAID: 'repayment',
   BILL_LIQUIDATED: 'liquidate',
   MERCHANT_ENROLLED: 'm_enroll',
   MERCHANT_STATUS: 'm_status',
