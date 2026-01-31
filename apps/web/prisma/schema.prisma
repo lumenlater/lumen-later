@@ -297,8 +297,9 @@ model Bill {
   // Merchant info (simple)
   merchantName     String
   
-  // Composite unique constraint - one bill ID per contract
-  @@unique([onChainBillId, contractId])
+  // Note: Unique constraint on onChainBillId + contractId is enforced at application level
+  // MongoDB's @@unique includes null values, causing conflicts for bills without onChainBillId yet
+  // Removed: @@unique([onChainBillId, contractId])
   
   // Indexes
   @@index([merchantAddress])

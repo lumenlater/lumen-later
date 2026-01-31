@@ -97,6 +97,36 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    // Get the bill to check contractId
+    const existingBill = await prisma.bill.findUnique({
+      where: { id },
+    });
+
+    if (!existingBill) {
+      return NextResponse.json(
+        { error: 'Bill not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check for duplicate onChainBillId within the same contract (application-level unique check)
+    if (onChainBillId !== undefined && onChainBillId !== null) {
+      const duplicate = await prisma.bill.findFirst({
+        where: {
+          onChainBillId,
+          contractId: existingBill.contractId,
+          id: { not: id }, // Exclude current bill
+        },
+      });
+
+      if (duplicate) {
+        return NextResponse.json(
+          { error: 'A bill with this onChainBillId already exists for this contract' },
+          { status: 409 }
+        );
+      }
+    }
+
     const bill = await prisma.bill.update({
       where: { id },
       data: { onChainBillId },
