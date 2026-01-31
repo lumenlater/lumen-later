@@ -58,7 +58,7 @@ const ll = new LumenLater({
   apiBaseUrl: "https://app.lumenlater.com/api/v1",  // API endpoint
   rpcUrl: "https://soroban-testnet.stellar.org",    // Stellar RPC server
   networkPassphrase: "Test SDF Network ; September 2015",  // Network
-  contractId: "CCMOEB24IIKXH5VEFXPFRELRT4M62RKMZVL6YTA2QAEZ44FGNTWORT3K",  // BNPL contract
+  contractId: "CB2C6INGREV2E4V2ISA4CHSSXVVIPJCJEZXMUL5LTSAMJFNF37CBUM22",  // BNPL contract
 });
 ```
 

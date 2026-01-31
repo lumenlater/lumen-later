@@ -32,15 +32,17 @@ export function LendingSection() {
     isLoading: usdcLoading
   } = useUsdcToken();
   
-  const { 
-    poolStats, 
-    deposit, 
-    withdraw, 
+  const {
+    poolStats,
+    deposit,
+    withdraw,
     calculateAPY,
-    balance: lpBalance, 
+    balance: lpBalance,       // USDC value (withdrawable amount)
+    rawShares,                // LP token count (doesn't change)
     balanceInUSDC,
     lockedBalance,
     availableBalance,
+    totalRawShares,           // Total LP shares in pool
     canWithdraw: canWithdrawAmount,
     isLoading: poolLoading
   } = useLiquidityPool();
@@ -109,7 +111,7 @@ export function LendingSection() {
       const lpTokens = await deposit(depositAmount);
       toast({
         title: 'Deposit Successful',
-        description: `Deposited ${depositAmount} USDC and received ${formatAmount(lpTokens)} LP tokens.`,
+        description: `Deposited ${depositAmount} USDC and received ${formatAmount(lpTokens)} LP shares.`,
       });
       setDepositAmount('');
       setIsApproved(false);
@@ -134,7 +136,7 @@ export function LendingSection() {
       const usdcAmount = await withdraw(withdrawAmount);
       toast({
         title: 'Withdrawal Successful',
-        description: `Withdrew ${withdrawAmount} LP tokens and received ${formatAmount(usdcAmount)} USDC.`,
+        description: `Burned ${withdrawAmount} LP shares and received ${formatAmount(usdcAmount)} USDC.`,
       });
       setWithdrawAmount('');
       
@@ -210,9 +212,9 @@ export function LendingSection() {
           <CardContent className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">
-                LP Tokens
+                LP Tokens to Withdraw
                 <span className="text-xs text-muted-foreground ml-2">
-                  Available: {availableBalance ? formatAmount(availableBalance) : '0.00'} / Total: {lpBalance ? formatAmount(lpBalance) : '0.00'}
+                  Your shares: {rawShares ? formatAmount(rawShares) : '0.00'} (≈${lpBalance ? formatAmount(lpBalance) : '0.00'})
                 </span>
               </label>
               <Input
@@ -264,7 +266,7 @@ export function LendingSection() {
               {lpLoading ? (
                 <Loader2 className="h-6 w-6 animate-spin" />
               ) : (
-                lpBalance ? formatAmount(lpBalance) : '0.00'
+                rawShares ? formatAmount(rawShares) : '0.00'
               )}
             </p>
             {lockedBalance && lockedBalance > 0n && (
@@ -277,14 +279,14 @@ export function LendingSection() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Your Value</CardTitle>
+            <CardTitle className="text-sm font-medium">Your Value (USDC)</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">
               {lpLoading || poolLoading ? (
                 <Loader2 className="h-6 w-6 animate-spin" />
               ) : (
-                balanceInUSDC ? `$${formatAmount(balanceInUSDC)}` : '$0.00'
+                lpBalance ? `$${formatAmount(lpBalance)}` : '$0.00'
               )}
             </p>
           </CardContent>
@@ -362,12 +364,12 @@ export function LendingSection() {
               </p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Total LP Supply</p>
+              <p className="text-sm text-muted-foreground">Total LP Shares</p>
               <p className="text-lg font-semibold">
                 {poolLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  poolStats ? formatAmount(poolStats.totalShares) : '0.00'
+                  totalRawShares ? formatAmount(totalRawShares) : '0.00'
                 )}
               </p>
             </div>

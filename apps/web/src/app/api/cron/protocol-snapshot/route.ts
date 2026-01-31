@@ -16,6 +16,9 @@ import CONTRACT_IDS from '@/config/contracts';
 const CRON_SECRET = process.env.CRON_SECRET;
 const STELLAR_RPC_URL = process.env.NEXT_PUBLIC_STELLAR_RPC_URL || 'https://soroban-testnet.stellar.org';
 
+// Current BNPL contract ID for filtering
+const BNPL_CONTRACT_ID = CONTRACT_IDS.BNPL_CORE;
+
 // Fee structure constants (matching smart contract)
 const MERCHANT_FEE_RATE = 0.015; // 1.5%
 const LP_FEE_SHARE = 0.70; // 70% of fees to LP
@@ -108,9 +111,10 @@ export async function POST(request: NextRequest) {
     // ===== LP Pool State (from Stellar RPC) =====
     const lpPoolState = await fetchLPPoolState();
 
-    // ===== Bills Stats =====
+    // ===== Bills Stats (filtered by current contract) =====
     const billStats = await prismaPostgres.parsedBill.groupBy({
       by: ['status'],
+      where: { contractId: BNPL_CONTRACT_ID },
       _count: { _all: true },
       _sum: { amount: true },
     });
@@ -133,10 +137,11 @@ export async function POST(request: NextRequest) {
 
     const billsTotal = Object.values(billsByStatus).reduce((a, b) => a + b, 0);
 
-    // ===== Volume by Time Period =====
+    // ===== Volume by Time Period (filtered by current contract) =====
     const [vol24hResult, vol7dResult, vol30dResult] = await Promise.all([
       prismaPostgres.parsedBill.aggregate({
         where: {
+          contractId: BNPL_CONTRACT_ID,
           status: { not: 'CREATED' },
           paidAt: { gte: oneDayAgo },
         },
@@ -144,6 +149,7 @@ export async function POST(request: NextRequest) {
       }),
       prismaPostgres.parsedBill.aggregate({
         where: {
+          contractId: BNPL_CONTRACT_ID,
           status: { not: 'CREATED' },
           paidAt: { gte: sevenDaysAgo },
         },
@@ -151,6 +157,7 @@ export async function POST(request: NextRequest) {
       }),
       prismaPostgres.parsedBill.aggregate({
         where: {
+          contractId: BNPL_CONTRACT_ID,
           status: { not: 'CREATED' },
           paidAt: { gte: thirtyDaysAgo },
         },
@@ -174,17 +181,21 @@ export async function POST(request: NextRequest) {
     const feesToTreasury = BigInt(Math.floor(Number(feesTotal) * TREASURY_FEE_SHARE));
     const feesToInsurance = BigInt(Math.floor(Number(feesTotal) * INSURANCE_FEE_SHARE));
 
-    // ===== Participant Stats =====
+    // ===== Participant Stats (filtered by current contract) =====
     const uniqueUsers = await prismaPostgres.parsedBill.findMany({
+      where: { contractId: BNPL_CONTRACT_ID },
       select: { user: true },
       distinct: ['user'],
     });
 
-    const uniqueMerchants = await prismaPostgres.parsedMerchant.count();
+    const uniqueMerchants = await prismaPostgres.parsedMerchant.count({
+      where: { contractId: BNPL_CONTRACT_ID },
+    });
 
     // Active users/merchants in last 24h
     const activeUsers24h = await prismaPostgres.parsedBill.findMany({
       where: {
+        contractId: BNPL_CONTRACT_ID,
         OR: [
           { createdAt: { gte: oneDayAgo } },
           { paidAt: { gte: oneDayAgo } },
@@ -197,6 +208,7 @@ export async function POST(request: NextRequest) {
 
     const activeMerchants24h = await prismaPostgres.parsedBill.findMany({
       where: {
+        contractId: BNPL_CONTRACT_ID,
         OR: [
           { createdAt: { gte: oneDayAgo } },
           { paidAt: { gte: oneDayAgo } },
@@ -206,17 +218,17 @@ export async function POST(request: NextRequest) {
       distinct: ['merchant'],
     });
 
-    // ===== Health Metrics =====
+    // ===== Health Metrics (filtered by current contract) =====
     // Outstanding = sum of PAID bills (not yet repaid)
     const outstandingResult = await prismaPostgres.parsedBill.aggregate({
-      where: { status: 'PAID' },
+      where: { contractId: BNPL_CONTRACT_ID, status: 'PAID' },
       _sum: { amount: true },
     });
     const totalOutstanding = outstandingResult._sum.amount || BigInt(0);
 
     // Average bill amount
     const avgBillResult = await prismaPostgres.parsedBill.aggregate({
-      where: { status: { not: 'CREATED' } },
+      where: { contractId: BNPL_CONTRACT_ID, status: { not: 'CREATED' } },
       _avg: { amount: true },
     });
     const avgBillAmount = avgBillResult._avg.amount
@@ -261,8 +273,9 @@ export async function POST(request: NextRequest) {
 
       // Total APY (actual cumulative)
       if (lpFeesTotal > 0) {
-        // Estimate days since first bill
+        // Estimate days since first bill (for this contract)
         const firstBill = await prismaPostgres.parsedBill.findFirst({
+          where: { contractId: BNPL_CONTRACT_ID },
           orderBy: { createdAt: 'asc' },
           select: { createdAt: true },
         });
@@ -283,8 +296,9 @@ export async function POST(request: NextRequest) {
         ? new Prisma.Decimal((Number(totalOutstanding) / Number(totalVolume)) * 100)
         : null;
 
-    // ===== Latest Ledger =====
+    // ===== Latest Ledger (for current contract) =====
     const latestEvent = await prismaPostgres.contractEvent.findFirst({
+      where: { contractId: BNPL_CONTRACT_ID },
       orderBy: { ledgerSequence: 'desc' },
       select: { ledgerSequence: true },
     });
@@ -292,6 +306,9 @@ export async function POST(request: NextRequest) {
     // ===== Create Snapshot =====
     const snapshot = await prismaPostgres.protocolSnapshot.create({
       data: {
+        // Contract identification
+        contractId: BNPL_CONTRACT_ID,
+
         // Liquidity Pool (using real TVL from RPC)
         poolTvl,
         poolUtilization,

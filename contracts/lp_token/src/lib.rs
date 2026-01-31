@@ -10,7 +10,7 @@ use bnpl_core_interface::BnplCoreClient;
 pub struct DepositEvent {
     pub user: Address,
     pub amount: i128,
-    pub shares_minted: i128,
+    pub shares_minted: u128,
 }
 
 #[contracttype]
@@ -18,7 +18,7 @@ pub struct DepositEvent {
 pub struct WithdrawEvent {
     pub user: Address,
     pub amount: i128,
-    pub shares_burned: i128,
+    pub shares_burned: u128,
 }
 
 #[contracttype]
@@ -43,145 +43,144 @@ pub struct LiquidationBurnEvent {
     pub fee: i128,
 }
 
-const DECIMALS: u128 = 1_000_000_000;
+const DECIMALS: u128 = 1_000_000_000; // 1e9 for precision
 
 #[contract]
 pub struct LpToken;
 
-// Helper methods that are not part of the trait
 #[contractimpl]
 impl LpToken {
-    fn do_transfer(env: Env, from: Address, to: Address, amount: i128) {
-        // Check available balance (total - locked)
-        let available = Self::available_balance(env.clone(), from.clone());
-        assert!(amount <= available, "insufficient available balance");
-        
-        let (mut balances, mut user_index, index) = Self::load_state(&env);
-        // Apply lazy evaluation to get actual shares at current index
-        let from_actual_shares = Self::apply_lazy(&from, &balances, &user_index, index);
-        let to_actual_shares = Self::apply_lazy(&to, &balances, &user_index, index);
+    // ==================== Internal Helpers ====================
 
-        let shares = (amount as u128) * DECIMALS / index;
-        assert!(shares <= from_actual_shares, "insufficient balance");
-
-        balances.set(from.clone(), from_actual_shares - shares);
-        balances.set(to.clone(), to_actual_shares + shares);
-        user_index.set(from.clone(), index);
-        user_index.set(to.clone(), index);
-
-        Self::save_state(&env, balances, user_index);
+    fn get_balances(env: &Env) -> Map<Address, u128> {
+        env.storage().instance().get(&symbol_short!("balances")).unwrap_or(Map::new(env))
     }
 
-    fn supply(env: &Env) -> u128 {
+    fn set_balances(env: &Env, balances: Map<Address, u128>) {
+        env.storage().instance().set(&symbol_short!("balances"), &balances);
+    }
+
+    fn get_supply(env: &Env) -> u128 {
         env.storage().instance().get(&symbol_short!("supply")).unwrap_or(0)
     }
 
-    fn index(env: &Env) -> u128 {
+    fn set_supply(env: &Env, supply: u128) {
+        env.storage().instance().set(&symbol_short!("supply"), &supply);
+    }
+
+    fn get_index(env: &Env) -> u128 {
         env.storage().instance().get(&symbol_short!("index")).unwrap_or(DECIMALS)
     }
 
-    fn load_state(env: &Env) -> (Map<Address, u128>, Map<Address, u128>, u128) {
-        (
-            env.storage().instance().get(&symbol_short!("balances")).unwrap_or(Map::new(&env)),
-            env.storage().instance().get(&symbol_short!("usr_index")).unwrap_or(Map::new(&env)),
-            Self::index(env),
-        )
+    fn set_index(env: &Env, index: u128) {
+        env.storage().instance().set(&symbol_short!("index"), &index);
     }
 
-    fn save_state(env: &Env, balances: Map<Address, u128>, user_index: Map<Address, u128>) {
-        env.storage().instance().set(&symbol_short!("balances"), &balances);
-        env.storage().instance().set(&symbol_short!("usr_index"), &user_index);
+    /// Get raw shares for a user (internal use)
+    fn get_shares(env: &Env, user: &Address) -> u128 {
+        Self::get_balances(env).get(user.clone()).unwrap_or(0)
     }
 
-    fn apply_lazy(user: &Address, balances: &Map<Address, u128>, user_index: &Map<Address, u128>, current_index: u128) -> u128 {
-        let prev_index = user_index.get(user.clone()).unwrap_or(DECIMALS);
-        let stored = balances.get(user.clone()).unwrap_or(0);
-        stored * current_index / prev_index
+    /// Set raw shares for a user (internal use)
+    fn set_shares(env: &Env, user: &Address, shares: u128) {
+        let mut balances = Self::get_balances(env);
+        balances.set(user.clone(), shares);
+        Self::set_balances(env, balances);
     }
+
+    /// Convert USDC amount to shares at current index
+    fn amount_to_shares(env: &Env, amount: u128) -> u128 {
+        let index = Self::get_index(env);
+        amount * DECIMALS / index
+    }
+
+    /// Convert shares to USDC amount at current index
+    fn shares_to_amount(env: &Env, shares: u128) -> u128 {
+        let index = Self::get_index(env);
+        shares * index / DECIMALS
+    }
+
+    fn do_transfer(env: Env, from: Address, to: Address, amount: i128) {
+        // Check available balance
+        let available = Self::available_balance(env.clone(), from.clone());
+        assert!(amount <= available, "insufficient available balance");
+
+        let shares_to_transfer = Self::amount_to_shares(&env, amount as u128);
+
+        let from_shares = Self::get_shares(&env, &from);
+        let to_shares = Self::get_shares(&env, &to);
+
+        assert!(shares_to_transfer <= from_shares, "insufficient balance");
+
+        Self::set_shares(&env, &from, from_shares - shares_to_transfer);
+        Self::set_shares(&env, &to, to_shares + shares_to_transfer);
+    }
+
+    // ==================== Public Functions ====================
 
     pub fn initialize(env: Env, admin: Address, underlying_asset: Address, metadata: TokenMetadata) {
         admin.require_auth();
         env.storage().instance().set(&symbol_short!("admin"), &admin);
         env.storage().instance().set(&symbol_short!("asset"), &underlying_asset);
         env.storage().instance().set(&symbol_short!("metadata"), &metadata);
-        env.storage().instance().set(&symbol_short!("index"), &DECIMALS); // 1.0
+        env.storage().instance().set(&symbol_short!("index"), &DECIMALS); // Start at 1.0
         env.storage().instance().set(&symbol_short!("supply"), &0u128);
         env.storage().instance().set(&symbol_short!("balances"), &Map::<Address, u128>::new(&env));
-        env.storage().instance().set(&symbol_short!("usr_index"), &Map::<Address, u128>::new(&env));
         env.storage().instance().set(&symbol_short!("allowance"), &Map::<(Address, Address), u128>::new(&env));
-        // Initialize borrowing related storage
-        env.storage().instance().set(&symbol_short!("borrowed"), &0u128); // BNPL Core borrowed amount
-        // BNPL Core address will be set later via set_bnpl_core()
+        env.storage().instance().set(&symbol_short!("borrowed"), &0u128);
     }
 
     /// Update the index based on current underlying balance vs LP supply
-    /// This distributes any excess underlying tokens to all LP holders
-    /// 
-    /// How to use:
-    /// 1. Send underlying tokens directly to this contract address
-    /// 2. Call update_index() to distribute them to all LP holders
+    /// This distributes any excess underlying tokens to all LP holders proportionally
+    ///
+    /// Call this after sending tokens to the contract to distribute them as yield
     pub fn update_index(env: Env) {
-        // Get current underlying balance in contract
         let underlying_balance = Self::total_underlying(env.clone());
-        
-        // Get total borrowed amount
         let total_borrowed = Self::total_borrowed(env.clone()) as i128;
-        
-        // Total assets = balance in contract + borrowed amount
         let total_assets = underlying_balance + total_borrowed;
-        
+
         if total_assets <= 0 {
             return;
         }
-        
-        // Get current supply and index
-        let supply = Self::supply(&env);
+
+        let supply = Self::get_supply(&env);
         if supply == 0 {
             return;
         }
-        
-        let current_index = Self::index(&env);
-        
-        // Calculate what the total supply should be worth at current index
-        let expected_underlying = (supply * current_index / DECIMALS) as i128;
-        
-        // If we have more total assets than expected, increase the index
-        if total_assets > expected_underlying {
+
+        let current_index = Self::get_index(&env);
+        let expected_value = (supply * current_index / DECIMALS) as i128;
+
+        // If we have more assets than expected, increase the index
+        if total_assets > expected_value {
             let new_index = (total_assets as u128) * DECIMALS / supply;
-            env.storage().instance().set(&symbol_short!("index"), &new_index);
+            Self::set_index(&env, new_index);
         }
     }
 
-    /// Deposit underlying assets and mint LP tokens
+    /// Deposit underlying assets and receive LP tokens
+    /// Returns the amount of LP tokens (USDC value) credited to the user
     pub fn deposit(env: Env, from: Address, amount: i128) -> i128 {
         from.require_auth();
-        
-        // First update index to ensure fair exchange rate
+
+        // Update index first to ensure fair exchange rate
         Self::update_index(env.clone());
-        
-        // Get underlying asset
+
+        // Transfer underlying tokens from user to this contract
         let underlying_asset: Address = env.storage().instance().get(&symbol_short!("asset")).unwrap();
         let underlying_client = TokenClient::new(&env, &underlying_asset);
-        
-        // Transfer underlying tokens from user to this contract
         underlying_client.transfer(&from, &env.current_contract_address(), &amount);
-        
-        // Calculate LP tokens to mint based on current index
-        let (mut balances, mut user_index, index) = Self::load_state(&env);
-        let prev_actual_shares = Self::apply_lazy(&from, &balances, &user_index, index);
-        
-        // Convert amount to shares
-        let shares_to_mint = (amount as u128) * DECIMALS / index;
-        
-        // Update user balance
-        balances.set(from.clone(), prev_actual_shares + shares_to_mint);
-        user_index.set(from.clone(), index);
-        
-        // Update total supply
-        let new_supply = Self::supply(&env) + shares_to_mint;
-        env.storage().instance().set(&symbol_short!("supply"), &new_supply);
 
-        Self::save_state(&env, balances, user_index);
+        // Calculate shares to mint based on current index
+        let shares_to_mint = Self::amount_to_shares(&env, amount as u128);
+
+        // Update user's shares
+        let current_shares = Self::get_shares(&env, &from);
+        Self::set_shares(&env, &from, current_shares + shares_to_mint);
+
+        // Update total supply
+        let new_supply = Self::get_supply(&env) + shares_to_mint;
+        Self::set_supply(&env, new_supply);
 
         // Emit deposit event
         env.events().publish(
@@ -189,65 +188,59 @@ impl LpToken {
             DepositEvent {
                 user: from,
                 amount,
-                shares_minted: amount,
+                shares_minted: shares_to_mint,
             }
         );
 
-        // Return actual LP tokens minted (in amount, not shares)
+        // Return the USDC value deposited (which equals amount)
         amount
     }
 
     /// Withdraw LP tokens and receive underlying assets
-    pub fn withdraw(env: Env, from: Address, lp_amount: i128) -> i128 {
+    /// amount: The USDC value to withdraw (same as balance() units)
+    /// Returns the actual USDC amount received
+    pub fn withdraw(env: Env, from: Address, amount: i128) -> i128 {
         from.require_auth();
-        
-        // Check available balance (total - locked)
+
+        // Check available balance
         let available = Self::available_balance(env.clone(), from.clone());
-        assert!(lp_amount <= available, "insufficient available balance");
-        
-        // Get underlying asset
-        let underlying_asset: Address = env.storage().instance().get(&symbol_short!("asset")).unwrap();
-        let underlying_client = TokenClient::new(&env, &underlying_asset);
-        
+        assert!(amount <= available, "insufficient available balance");
+
         // Calculate shares to burn
-        let (mut balances, mut user_index, index) = Self::load_state(&env);
-        let user_actual_shares = Self::apply_lazy(&from, &balances, &user_index, index);
-        let shares_to_burn = (lp_amount as u128) * DECIMALS / index;
-        
-        assert!(shares_to_burn <= user_actual_shares, "insufficient balance");
-        
-        // Calculate underlying amount to return (includes accumulated interest)
-        let underlying_amount = (shares_to_burn * index / DECIMALS) as i128;
-        
-        // Update user balance
-        balances.set(from.clone(), user_actual_shares - shares_to_burn);
-        user_index.set(from.clone(), index);
-        
+        let shares_to_burn = Self::amount_to_shares(&env, amount as u128);
+
+        let user_shares = Self::get_shares(&env, &from);
+        assert!(shares_to_burn <= user_shares, "insufficient balance");
+
+        // Update user's shares
+        Self::set_shares(&env, &from, user_shares - shares_to_burn);
+
         // Update total supply
-        let new_supply = Self::supply(&env) - shares_to_burn;
-        env.storage().instance().set(&symbol_short!("supply"), &new_supply);
-        
-        Self::save_state(&env, balances, user_index);
+        let current_supply = Self::get_supply(&env);
+        Self::set_supply(&env, current_supply - shares_to_burn);
 
         // Transfer underlying tokens back to user
-        underlying_client.transfer(&env.current_contract_address(), &from, &underlying_amount);
+        let underlying_asset: Address = env.storage().instance().get(&symbol_short!("asset")).unwrap();
+        let underlying_client = TokenClient::new(&env, &underlying_asset);
+        underlying_client.transfer(&env.current_contract_address(), &from, &amount);
 
         // Emit withdraw event
         env.events().publish(
             (symbol_short!("withdraw"), from.clone()),
             WithdrawEvent {
                 user: from,
-                amount: underlying_amount,
-                shares_burned: lp_amount,
+                amount,
+                shares_burned: shares_to_burn,
             }
         );
 
-        underlying_amount
+        amount
     }
 
-    /// Get the current exchange rate (how much underlying asset 1 LP token is worth)
+    /// Get the current exchange rate (index)
+    /// 1 share = index / DECIMALS USDC
     pub fn exchange_rate(env: Env) -> u128 {
-        Self::index(&env)
+        Self::get_index(&env)
     }
 
     /// Get the underlying asset address
@@ -261,37 +254,31 @@ impl LpToken {
         let underlying_client = TokenClient::new(&env, &underlying_asset);
         underlying_client.balance(&env.current_contract_address())
     }
-    
+
     /// Set the BNPL Core contract address (admin only)
     pub fn set_bnpl_core(env: Env, bnpl_core: Address) {
         let admin: Address = env.storage().instance().get(&symbol_short!("admin")).unwrap();
         admin.require_auth();
         env.storage().instance().set(&symbol_short!("bnpl_core"), &bnpl_core);
     }
-    
+
     /// Get the BNPL Core contract address
     pub fn get_bnpl_core(env: Env) -> Option<Address> {
         env.storage().instance().get(&symbol_short!("bnpl_core"))
     }
-    
-    /// Borrow underlying assets (BNPL Core only, no interest)
+
+    /// Borrow underlying assets (BNPL Core only)
     pub fn borrow(env: Env, to: Address, amount: i128) {
-        // Only BNPL Core can call this
         let bnpl_core: Address = env.storage().instance().get(&symbol_short!("bnpl_core")).unwrap();
         bnpl_core.require_auth();
 
-        // Get current borrowed amount
         let current_borrowed: u128 = env.storage().instance().get(&symbol_short!("borrowed")).unwrap_or(0);
-
-        // Update borrowed amount
         env.storage().instance().set(&symbol_short!("borrowed"), &(current_borrowed + (amount as u128)));
 
-        // Transfer underlying tokens to recipient
         let underlying_asset: Address = env.storage().instance().get(&symbol_short!("asset")).unwrap();
         let underlying_client = TokenClient::new(&env, &underlying_asset);
         underlying_client.transfer(&env.current_contract_address(), &to, &amount);
 
-        // Emit borrow event
         env.events().publish(
             (symbol_short!("borrow"), to.clone()),
             BorrowEvent {
@@ -300,32 +287,25 @@ impl LpToken {
             }
         );
     }
-    
+
     /// Repay borrowed amount (BNPL Core only)
     pub fn repay(env: Env, from: Address, amount: i128) {
-        // Only BNPL Core can call this
         let bnpl_core: Address = env.storage().instance().get(&symbol_short!("bnpl_core")).unwrap();
         bnpl_core.require_auth();
 
-        // Get current borrowed amount
         let current_borrowed: u128 = env.storage().instance().get(&symbol_short!("borrowed")).unwrap_or(0);
-
-        // Cannot repay more than borrowed
         let repay_amount = if (amount as u128) > current_borrowed {
             current_borrowed
         } else {
             amount as u128
         };
 
-        // Update borrowed amount
         env.storage().instance().set(&symbol_short!("borrowed"), &(current_borrowed - repay_amount));
 
-        // Transfer underlying tokens from repayer to this contract
         let underlying_asset: Address = env.storage().instance().get(&symbol_short!("asset")).unwrap();
         let underlying_client = TokenClient::new(&env, &underlying_asset);
         underlying_client.transfer_from(&env.current_contract_address(), &from, &env.current_contract_address(), &(repay_amount as i128));
 
-        // Emit repay event
         env.events().publish(
             (symbol_short!("repay"), from.clone()),
             RepayEvent {
@@ -334,44 +314,31 @@ impl LpToken {
             }
         );
     }
-    
-    /// Get total amount borrowed (by BNPL Core)
+
+    /// Get total amount borrowed
     pub fn total_borrowed(env: Env) -> u128 {
         env.storage().instance().get(&symbol_short!("borrowed")).unwrap_or(0)
     }
-    
+
     /// Repay with burn for liquidation (BNPL Core only)
-    /// Burns LP tokens from user and transfers fee to BNPL Core
-    /// amount: The borrowed amount being repaid
-    /// fee: The liquidation fee
-    /// from: The user being liquidated
     pub fn repay_with_burn(env: Env, from: Address, amount: i128, fee: i128) {
-        // Only BNPL Core can call this
         let bnpl_core: Address = env.storage().instance().get(&symbol_short!("bnpl_core")).unwrap();
         bnpl_core.require_auth();
-        
-        // Total to burn = amount + fee
+
         let total_to_burn = amount + fee;
-        
-        // Get current state
-        let (mut balances, mut user_index, index) = Self::load_state(&env);
-        let user_actual_shares = Self::apply_lazy(&from, &balances, &user_index, index);
-        
-        // Calculate shares to burn
-        let shares_to_burn = (total_to_burn as u128) * DECIMALS / index;
-        assert!(shares_to_burn <= user_actual_shares, "insufficient balance for liquidation");
-        
-        // Burn the shares from user
-        balances.set(from.clone(), user_actual_shares - shares_to_burn);
-        user_index.set(from.clone(), index);
-        
+        let shares_to_burn = Self::amount_to_shares(&env, total_to_burn as u128);
+
+        let user_shares = Self::get_shares(&env, &from);
+        assert!(shares_to_burn <= user_shares, "insufficient balance for liquidation");
+
+        // Burn shares from user
+        Self::set_shares(&env, &from, user_shares - shares_to_burn);
+
         // Update total supply
-        let new_supply = Self::supply(&env) - shares_to_burn;
-        env.storage().instance().set(&symbol_short!("supply"), &new_supply);
-        
-        Self::save_state(&env, balances, user_index);
-        
-        // Update borrowed amount (reduce by the repaid amount only, not the fee)
+        let current_supply = Self::get_supply(&env);
+        Self::set_supply(&env, current_supply - shares_to_burn);
+
+        // Update borrowed amount
         let current_borrowed: u128 = env.storage().instance().get(&symbol_short!("borrowed")).unwrap_or(0);
         let new_borrowed = if (amount as u128) > current_borrowed {
             0
@@ -379,18 +346,14 @@ impl LpToken {
             current_borrowed - (amount as u128)
         };
         env.storage().instance().set(&symbol_short!("borrowed"), &new_borrowed);
-        
+
         // Transfer the fee to BNPL Core
         if fee > 0 {
             let underlying_asset: Address = env.storage().instance().get(&symbol_short!("asset")).unwrap();
             let underlying_client = TokenClient::new(&env, &underlying_asset);
-
-            // The underlying tokens equivalent to the fee are now available in the contract
-            // Transfer them to BNPL Core
             underlying_client.transfer(&env.current_contract_address(), &bnpl_core, &fee);
         }
 
-        // Emit liquidation burn event
         env.events().publish(
             (symbol_short!("liq_burn"), from.clone()),
             LiquidationBurnEvent {
@@ -401,57 +364,49 @@ impl LpToken {
         );
     }
 
-    /// Calculate utilization ratio (borrowed / total_supply)
+    /// Calculate utilization ratio (borrowed / total_deposits)
     /// Returns basis points (10000 = 100%)
     pub fn utilization_ratio(env: Env) -> u32 {
         let total_assets = Self::total_underlying(env.clone()) as u128;
         let total_borrows = Self::total_borrowed(env.clone());
         let total_deposits = total_assets + total_borrows;
-        
+
         if total_deposits == 0 {
             return 0;
         }
-        
-        // Calculate utilization as basis points
+
         ((total_borrows * 10000) / total_deposits) as u32
     }
-    
+
     /// Get locked LP tokens for a user based on BNPL Core requirements
-    /// This prevents users from withdrawing collateral needed for their BNPL positions
     pub fn get_locked_balance(env: Env, user: Address) -> i128 {
-        // Get BNPL Core contract address
         let bnpl_core: Address = match env.storage().instance().get(&symbol_short!("bnpl_core")) {
             Some(addr) => addr,
-            None => return 0, // No BNPL Core set, no locked balance
+            None => return 0,
         };
-        
-        // Query BNPL Core for the user's required collateral
+
         let bnpl_client = BnplCoreClient::new(&env, &bnpl_core);
-        let required_collateral = bnpl_client.get_user_required_collateral(&user);
-        
-        // The locked balance is the required collateral amount
-        required_collateral
+        bnpl_client.get_user_required_collateral(&user)
     }
-    
-    
+
     /// Get available balance (total balance - locked balance)
     pub fn available_balance(env: Env, user: Address) -> i128 {
         let total = Self::balance(env.clone(), user.clone());
         let locked = Self::get_locked_balance(env, user);
-        
+
         if total > locked {
             total - locked
         } else {
             0
         }
     }
-    
+
     /// Get user balance info (total, locked, available)
     pub fn get_balance_info(env: Env, user: Address) -> (i128, i128, i128) {
         let total = Self::balance(env.clone(), user.clone());
         let locked = Self::get_locked_balance(env.clone(), user.clone());
         let available = if total > locked { total - locked } else { 0 };
-        
+
         (total, locked, available)
     }
 
@@ -459,32 +414,40 @@ impl LpToken {
         let admin: Address = env.storage().instance().get(&symbol_short!("admin")).unwrap();
         admin.require_auth();
 
-        let (mut balances, mut user_index, index) = Self::load_state(&env);
-        let prev_actual_shares = Self::apply_lazy(&to, &balances, &user_index, index);
-        let amount_u128 = amount as u128;
-        balances.set(to.clone(), prev_actual_shares + amount_u128 * DECIMALS / index);
-        user_index.set(to.clone(), index);
-        env.storage().instance().set(&symbol_short!("supply"), &(Self::supply(&env) + amount_u128 * DECIMALS / index));
-        Self::save_state(&env, balances, user_index);
+        let shares_to_mint = Self::amount_to_shares(&env, amount as u128);
+        let current_shares = Self::get_shares(&env, &to);
+        Self::set_shares(&env, &to, current_shares + shares_to_mint);
+
+        let new_supply = Self::get_supply(&env) + shares_to_mint;
+        Self::set_supply(&env, new_supply);
     }
 
     pub fn metadata(env: Env) -> TokenMetadata {
         env.storage().instance().get(&symbol_short!("metadata")).unwrap()
     }
 
+    /// Total supply in USDC value (not raw shares)
     pub fn total_supply(env: Env) -> i128 {
-        (Self::supply(&env) * Self::index(&env) / DECIMALS) as i128
+        Self::shares_to_amount(&env, Self::get_supply(&env)) as i128
+    }
+
+    /// Get user's raw shares (for debugging/transparency)
+    pub fn raw_shares(env: Env, user: Address) -> u128 {
+        Self::get_shares(&env, &user)
+    }
+
+    /// Get total raw shares (for debugging/transparency)
+    pub fn total_raw_shares(env: Env) -> u128 {
+        Self::get_supply(&env)
     }
 }
 
 #[contractimpl]
 impl TokenInterface for LpToken {
+    /// Balance in USDC value (shares * index / DECIMALS)
     fn balance(env: Env, user: Address) -> i128 {
-        let (balances, user_index, index) = Self::load_state(&env);
-        let shares = balances.get(user.clone()).unwrap_or(0);
-        let user_idx = user_index.get(user.clone()).unwrap_or(DECIMALS);
-        // Apply the rebasing formula: shares * current_index / user_index
-        (shares * index / user_idx) as i128
+        let shares = Self::get_shares(&env, &user);
+        Self::shares_to_amount(&env, shares) as i128
     }
 
     fn allowance(env: Env, from: Address, spender: Address) -> i128 {
@@ -494,7 +457,6 @@ impl TokenInterface for LpToken {
 
     fn approve(env: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
         from.require_auth();
-        // Note: we ignore expiration_ledger for simplicity
         let _ = expiration_ledger;
         let mut allowances: Map<(Address, Address), u128> = env.storage().instance().get(&symbol_short!("allowance")).unwrap_or(Map::new(&env));
         allowances.set((from.clone(), spender), amount as u128);
@@ -518,46 +480,44 @@ impl TokenInterface for LpToken {
 
     fn burn(env: Env, from: Address, amount: i128) {
         from.require_auth();
-        
-        // Check available balance (total - locked)
+
         let available = Self::available_balance(env.clone(), from.clone());
         assert!(amount <= available, "insufficient available balance");
-        
-        let (mut balances, mut user_index, index) = Self::load_state(&env);
-        let prev_actual_shares = Self::apply_lazy(&from, &balances, &user_index, index);
-        let burn_shares = (amount as u128) * DECIMALS / index;
-        assert!(burn_shares <= prev_actual_shares, "insufficient balance");
-        balances.set(from.clone(), prev_actual_shares - burn_shares);
-        user_index.set(from.clone(), index);
-        env.storage().instance().set(&symbol_short!("supply"), &(Self::supply(&env) - burn_shares));
-        Self::save_state(&env, balances, user_index);
+
+        let shares_to_burn = Self::amount_to_shares(&env, amount as u128);
+        let user_shares = Self::get_shares(&env, &from);
+        assert!(shares_to_burn <= user_shares, "insufficient balance");
+
+        Self::set_shares(&env, &from, user_shares - shares_to_burn);
+
+        let current_supply = Self::get_supply(&env);
+        Self::set_supply(&env, current_supply - shares_to_burn);
     }
 
     fn burn_from(env: Env, spender: Address, from: Address, amount: i128) {
         spender.require_auth();
-        
-        // Check available balance (total - locked)
+
         let available = Self::available_balance(env.clone(), from.clone());
         assert!(amount <= available, "insufficient available balance");
-        
+
         let mut allowances: Map<(Address, Address), u128> = env.storage().instance().get(&symbol_short!("allowance")).unwrap_or(Map::new(&env));
         let current = allowances.get((from.clone(), spender.clone())).unwrap_or(0) as i128;
         assert!(current >= amount, "allowance exceeded");
         allowances.set((from.clone(), spender.clone()), (current - amount) as u128);
         env.storage().instance().set(&symbol_short!("allowance"), &allowances);
 
-        let (mut balances, mut user_index, index) = Self::load_state(&env);
-        let prev_actual_shares = Self::apply_lazy(&from, &balances, &user_index, index);
-        let burn_shares = (amount as u128) * DECIMALS / index;
-        assert!(burn_shares <= prev_actual_shares, "insufficient balance");
-        balances.set(from.clone(), prev_actual_shares - burn_shares);
-        user_index.set(from.clone(), index);
-        env.storage().instance().set(&symbol_short!("supply"), &(Self::supply(&env) - burn_shares));
-        Self::save_state(&env, balances, user_index);
+        let shares_to_burn = Self::amount_to_shares(&env, amount as u128);
+        let user_shares = Self::get_shares(&env, &from);
+        assert!(shares_to_burn <= user_shares, "insufficient balance");
+
+        Self::set_shares(&env, &from, user_shares - shares_to_burn);
+
+        let current_supply = Self::get_supply(&env);
+        Self::set_supply(&env, current_supply - shares_to_burn);
     }
 
     fn decimals(_env: Env) -> u32 {
-        9
+        7 // USDC decimals
     }
 
     fn name(env: Env) -> soroban_sdk::String {

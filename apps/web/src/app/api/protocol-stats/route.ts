@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prismaPostgres } from '@/lib/prisma-postgres';
+import CONTRACT_IDS from '@/config/contracts';
+
+// Current BNPL contract ID for filtering
+const BNPL_CONTRACT_ID = CONTRACT_IDS.BNPL_CORE;
 
 /**
  * GET /api/protocol-stats
@@ -60,8 +64,9 @@ export async function GET(request: NextRequest) {
     const includeHistory = searchParams.get('history') === 'true';
     const period = (searchParams.get('period') || '7d') as Period;
 
-    // Get latest snapshot
+    // Get latest snapshot for current contract
     const latest = await prismaPostgres.protocolSnapshot.findFirst({
+      where: { contractId: BNPL_CONTRACT_ID },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -91,7 +96,10 @@ export async function GET(request: NextRequest) {
       const periodStart = getPeriodDate(period);
 
       const history = await prismaPostgres.protocolSnapshot.findMany({
-        where: periodStart ? { createdAt: { gte: periodStart } } : undefined,
+        where: {
+          contractId: BNPL_CONTRACT_ID,
+          ...(periodStart ? { createdAt: { gte: periodStart } } : {}),
+        },
         orderBy: { createdAt: 'asc' },
         // Limit to reasonable amount for graphs
         take: period === 'all' ? 1000 : undefined,

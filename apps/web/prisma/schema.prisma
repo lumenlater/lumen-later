@@ -315,8 +315,11 @@ model Bill {
 
 // Bot state persistence
 model BotState {
-  id        String    @id @default("current") @map("_id")
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
   updatedAt DateTime? @updatedAt
+
+  // Contract identification
+  contractId String // BNPL contract ID
 
   // Running status
   isRunning  Boolean   @default(false)
@@ -340,6 +343,7 @@ model BotState {
   // Goal progress snapshot
   goalProgress Json? // Current goal progress
 
+  @@index([contractId])
   @@map("bot_state")
 }
 
@@ -347,6 +351,9 @@ model BotState {
 model BotActivity {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   createdAt DateTime @default(now())
+
+  // Contract identification
+  contractId String // BNPL contract ID
 
   // Activity info
   date      String   // YYYY-MM-DD for easy querying
@@ -359,6 +366,8 @@ model BotActivity {
   // Timing
   duration  Int?     // Execution time in ms
 
+  @@index([contractId])
+  @@index([contractId, date])
   @@index([date])
   @@index([scenario])
   @@index([success])
@@ -372,9 +381,12 @@ model BotAccount {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Contract identification
+  contractId String // BNPL contract ID
+
   // Account identification
-  name      String   @unique  // e.g., "merchant-1", "user-5"
-  address   String   @unique  // Stellar public key
+  name      String   // e.g., "merchant-1", "user-5"
+  address   String   // Stellar public key
   type      BotAccountType
 
   // State tracking
@@ -390,6 +402,9 @@ model BotAccount {
   lpDeposited     Float     @default(0)  // LP tokens held
   activeBills     Int[]     // Active bill IDs
 
+  @@unique([contractId, name])
+  @@unique([contractId, address])
+  @@index([contractId])
   @@index([type])
   @@index([merchantStatus])
   @@map("bot_accounts")
@@ -406,8 +421,11 @@ model BotDailyMetrics {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   createdAt DateTime @default(now())
 
+  // Contract identification
+  contractId String // BNPL contract ID
+
   // Date for the metrics
-  date      String   @unique  // YYYY-MM-DD
+  date      String   // YYYY-MM-DD
 
   // Transaction counts
   totalTx         Int @default(0)
@@ -427,6 +445,8 @@ model BotDailyMetrics {
   endOfDayMerchants     Int?
   endOfDayUsers         Int?
 
+  @@unique([contractId, date])
+  @@index([contractId])
   @@map("bot_daily_metrics")
 }
 

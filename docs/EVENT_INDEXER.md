@@ -190,9 +190,9 @@ Response:
 
 | Contract | Address | Events |
 |----------|---------|--------|
-| BNPL_CORE | `CC7KPNSQWP2FKOAXMDI7LN7FREPJNQM44QO4VAL5WDDCAV4OC2YDGOWY` | bill_created, bill_paid, bill_repaid, bill_liquidated |
-| LP_TOKEN | `CDDIYSWIAPZALYJUT47YY33NTBYY6KXYXBMU6AY4KQ6FZJ7N3JCKPBEB` | deposit, withdraw, borrow, repay |
-| USDC_TOKEN | `CBNOIIPYSYNBH477KUBOX5VRWUIW2PLDF4TE52GGYWRKSQM4BMD5GHK2` | transfer, mint, burn |
+| BNPL_CORE | `CB2C6INGREV2E4V2ISA4CHSSXVVIPJCJEZXMUL5LTSAMJFNF37CBUM22` | bill_created, bill_paid, bill_repaid, bill_liquidated |
+| LP_TOKEN | `CD52BXRSLRWICSTICLJKRNVT4R2EH54HGHYQIYKRCBOY35TOQ47AD2XS` | deposit, withdraw, borrow, repay |
+| USDC_TOKEN | `CAVONKCQ4KLYX3C22Q22722NVGABOVZQ6UDV6OAVJ5Q5ETHYAZN7QJC3` | transfer, mint, burn |
 
 ## Debugging
 

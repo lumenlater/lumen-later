@@ -620,8 +620,8 @@ fn test_metadata_functions() {
     
     lp_client.initialize(&admin, &underlying.address(), &metadata);
     
-    // Test metadata functions
-    assert_eq!(token_client.decimals(), 9);
+    // Test metadata functions (LP token uses USDC decimals = 7)
+    assert_eq!(token_client.decimals(), 7);
     assert_eq!(token_client.name(), String::from_str(&env, "LP Token"));
     assert_eq!(token_client.symbol(), String::from_str(&env, "LP"));
 }

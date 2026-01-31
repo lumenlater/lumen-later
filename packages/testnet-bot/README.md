@@ -124,6 +124,19 @@ pm2 logs testnet-bot
 pm2 stop testnet-bot
 ```
 
+### Local Development with HTTPS
+
+If the web app is running with self-signed certificates (`--experimental-https`),
+you need to disable SSL verification for the bot to connect:
+
+```bash
+# For bootstrap steps
+NODE_TLS_REJECT_UNAUTHORIZED=0 node dist/bin/bootstrap-step.js 6
+
+# For running the bot
+NODE_TLS_REJECT_UNAUTHORIZED=0 pnpm start
+```
+
 ### Check Status
 
 ```bash

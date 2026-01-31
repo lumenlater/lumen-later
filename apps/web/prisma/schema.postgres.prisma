@@ -55,6 +55,9 @@ model ProtocolSnapshot {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
 
+  // ===== Contract Identification =====
+  contractId String @map("contract_id") // BNPL contract ID for this snapshot
+
   // ===== Liquidity Pool =====
   poolTvl         BigInt?  @map("pool_tvl")          // Total Value Locked (stroops)
   poolUtilization Decimal? @map("pool_utilization") @db.Decimal(5, 2) // Outstanding / TVL (%)
@@ -103,6 +106,8 @@ model ProtocolSnapshot {
   latestLedger BigInt? @map("latest_ledger")
 
   @@index([createdAt])
+  @@index([contractId])
+  @@index([contractId, createdAt])
   @@map("protocol_snapshots")
 }
 
