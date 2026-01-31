@@ -115,7 +115,8 @@ export const merchantApi = {
         mongoId,
         status,
         reviewedAt: new Date().toISOString(),
-        reviewNotes: reviewNotes || `Approved by testnet bot`,
+        // rejectionReason is used for notes (only applicable for REJECTED status)
+        ...(status === 'REJECTED' && reviewNotes ? { rejectionReason: reviewNotes } : {}),
       }),
     });
 

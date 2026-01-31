@@ -39,6 +39,7 @@ class StateManager {
   private db: any = null;
   private isConnected = false;
   private recentActivity: ActivityLog[] = [];
+  private contractId: string = ''; // Will be set on connect
   private dailyStats = {
     date: new Date().toISOString().split('T')[0],
     txCount: 0,
@@ -64,8 +65,9 @@ class StateManager {
       await this.mongoClient.connect();
       this.db = this.mongoClient.db(config.mongodb.dbName);
       this.isConnected = true;
+      this.contractId = config.contracts.bnplCoreId;
 
-      logger.success('Connected to MongoDB');
+      logger.success(`Connected to MongoDB (contractId: ${this.contractId})`);
 
       // Restore state if available
       await this.restoreState();
@@ -104,6 +106,7 @@ class StateManager {
       // Flattened structure matching Prisma schema
       const state = {
         updatedAt: new Date(),
+        contractId: this.contractId,
         isRunning: true,
         startedAt: this.startedAt,
         // Flattened daily stats
@@ -121,7 +124,7 @@ class StateManager {
       };
 
       await this.db.collection('bot_state').updateOne(
-        { _id: 'current' },
+        { contractId: this.contractId },
         { $set: state },
         { upsert: true }
       );
@@ -138,7 +141,7 @@ class StateManager {
     if (!this.isConnected) return;
 
     try {
-      const state = await this.db.collection('bot_state').findOne({ _id: 'current' });
+      const state = await this.db.collection('bot_state').findOne({ contractId: this.contractId });
 
       if (state) {
         // Restore daily stats if same day (handle both old and new formats)
@@ -228,6 +231,7 @@ class StateManager {
     try {
       await this.db.collection('bot_activities').insertOne({
         createdAt: activity.timestamp,
+        contractId: this.contractId,
         date: new Date().toISOString().split('T')[0],
         scenario: activity.scenario,
         success: activity.success,
@@ -288,7 +292,7 @@ class StateManager {
     if (!this.isConnected) return true; // Default to running if not connected
 
     try {
-      const state = await this.db.collection('bot_state').findOne({ _id: 'current' });
+      const state = await this.db.collection('bot_state').findOne({ contractId: this.contractId });
       return state?.isRunning ?? true;
     } catch (error: any) {
       logger.warn(`Failed to check remote state: ${error.message}`);
@@ -305,6 +309,7 @@ class StateManager {
     try {
       const activities = await this.db.collection('bot_activities')
         .find({
+          contractId: this.contractId,
           createdAt: {
             $gte: startDate,
             $lte: endDate,
@@ -334,6 +339,7 @@ class StateManager {
       const pipeline = [
         {
           $match: {
+            contractId: this.contractId,
             createdAt: { $gte: startDate },
           },
         },

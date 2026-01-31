@@ -51,7 +51,7 @@ export const lpActions = {
 
     const tx = await clients.lp.withdraw({
       from: address,
-      lp_amount: lpAmount,
+      amount: lpAmount,
     });
 
     const result = await tx.signAndSend();
