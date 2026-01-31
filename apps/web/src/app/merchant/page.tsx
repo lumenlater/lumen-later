@@ -111,22 +111,23 @@ export default function MerchantPage() {
       });
 
       // Step 2: Create bill on-chain with MongoDB ID
-      const onChainResult = await createOnChainBill(
-        formData.userAddress,
-        formData.amount,
-        offChainBill.id // Pass MongoDB ID as order_id
-      );
+      const onChainResult = await createOnChainBill({
+        user: formData.userAddress,
+        amount: formData.amount,
+        orderId: offChainBill.id, // Pass MongoDB ID as order_id
+      });
 
-      if (onChainResult && onChainResult.billId !== undefined) {
+      if (onChainResult) {
         // Step 3: Update MongoDB with on-chain bill ID
+        // onChainResult is the billId string directly
         await updateBillWithOnChainId.mutateAsync({
           id: offChainBill.id,
-          onChainBillId: onChainResult.billId
+          onChainBillId: onChainResult
         });
 
         toast({
           title: 'Bill created successfully',
-          description: `Bill #${onChainResult.billId} created for ${formData.amount} USDC`
+          description: `Bill #${onChainResult} created for ${formData.amount} USDC`
         });
 
         // Reset form
